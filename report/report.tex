@@ -1,0 +1,413 @@
+\documentclass[10pt]{article}
+
+\usepackage[margin=0.75in,top=0.9in,bottom=0.9in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{siunitx}
+\usepackage{colortbl}
+
+\setlist{itemsep=1pt, topsep=2pt, parsep=0pt}
+
+\definecolor{accent}{HTML}{1B4F72}
+\definecolor{accentlight}{HTML}{D6EAF8}
+\definecolor{pascalcolor}{HTML}{7B241C}
+\definecolor{turingcolor}{HTML}{1B4F72}
+\definecolor{rowgray}{HTML}{F4F6F7}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accent,
+  urlcolor=accent,
+  citecolor=accent,
+  pdftitle={CUDA GEMM Kernel Optimization: An Empirical Architecture Study},
+  pdfauthor={Ada HPC Cluster Study}
+}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{accent}}
+  {\thesection}{0.6em}{}[{\color{accent}\titlerule[1pt]}]
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{accent!85!black}}
+  {\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{accent!70!black}}
+  {\thesubsubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{0.6em}{0.35em}
+\titlespacing*{\subsection}{0pt}{0.45em}{0.2em}
+\titlespacing*{\subsubsection}{0pt}{0.35em}{0.15em}
+
+\renewcommand{\arraystretch}{1.0}
+\setlength{\textfloatsep}{6pt plus 2pt minus 2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{2pt}
+
+\captionsetup{labelfont={color=accent,bf}, font=small, skip=4pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.6pt}
+\renewcommand{\footrulewidth}{0.3pt}
+\fancyhead[L]{\small\color{accent!70!black}\textsc{CUDA GEMM Optimization Study}}
+\fancyhead[R]{\small\color{accent!70!black}Pascal $\times$ Turing}
+\fancyfoot[C]{\small\thepage}
+
+\newcommand{\ttsmall}[1]{{\small\texttt{#1}}}
+
+\title{\vspace{-2.2em}%
+{\color{accent}\rule{\textwidth}{1.2pt}}\\[0.6em]
+{\Huge\bfseries CUDA GEMM Kernel Optimization}\\[0.3em]
+{\Large An Empirical Architecture Study}\\[0.8em]
+{\color{accent}\rule{\textwidth}{1.2pt}}
+}
+\author{}
+\date{\large Ada HPC Cluster \;\textbullet\; Pascal (GTX 1080 Ti) $\times$ Turing (RTX 2080 Ti)}
+
+\begin{document}
+
+\begin{center}
+{\color{accent}\rule{\textwidth}{1.5pt}}\\[0.5em]
+{\Large\bfseries CUDA GEMM Kernel Optimization --- An Empirical Architecture Study}\\[0.3em]
+{\normalsize Ada HPC Cluster \;\textbullet\; \textcolor{pascalcolor}{\bfseries Pascal (GTX 1080 Ti)} $\times$ \textcolor{turingcolor}{\bfseries Turing (RTX 2080 Ti)}}\\[0.4em]
+{\color{accent}\rule{\textwidth}{1.5pt}}
+\end{center}
+\vspace{0.8em}
+
+\section{Test Environment}
+
+\subsection{Hardware}
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+\rowcolor{accent} \textcolor{white}{\textbf{Property}} & \textcolor{white}{\textbf{Pascal Node}} & \textcolor{white}{\textbf{Turing Node}} \\
+\midrule
+GPU model & NVIDIA GeForce GTX 1080 Ti & NVIDIA GeForce RTX 2080 Ti \\
+Node range & gnode01--gnode40 & gnode43--gnode92 \\
+Architecture & Pascal (sm\_61) & Turing (sm\_75) \\
+SM count & 28 & 68 \\
+FP32 peak & 11.34 TFLOPS & 13.45 TFLOPS \\
+FP16 TC peak & None (no Tensor Cores) & 107.6 TFLOPS \footnotemark \\
+DRAM bandwidth & 484.4 GB/s & 616.0 GB/s \\
+Total GPU memory & 11 GB GDDR5X & 11 GB GDDR6 \\
+L1/L2 cache & 48 KB L1/SM (fixed), 2 MB L2 & 32--96 KB L1/SM (configurable), 5.5 MB L2 \\
+Shared mem/SM & 48 KB (fixed) & Up to 64 KB (configurable) \\
+Register file/SM & 256 KB (65536 $\times$ 32-bit) & 256 KB (65536 $\times$ 32-bit) \\
+Max threads/SM & 2048 & 1024 \\
+Max blocks/SM & 32 & 16 \\
+Tensor Cores & \textbf{None} & Yes (1st-gen FP16/INT8) \\
+DP4A (INT8 dot) & Yes & Yes \\
+PCIe generation & PCIe 3.0 $\times$16 & PCIe 3.0 $\times$16 \\
+CPU (host) & Dual Xeon E5-2640 v4 (2$\times$10 cores) & Dual Xeon E5-2640 v4 (2$\times$10 cores) \\
+Host RAM & 128 GB DDR4 & 128 GB DDR4 \\
+\bottomrule
+\end{tabularx}
+\caption{Hardware specifications for the two test nodes.}
+\end{table}
+\footnotetext{True architectural peak across all 544 Tensor Cores.}
+
+\subsection{Measurement Methodology}
+
+Primary timing is conducted via CUDA event pairs (\texttt{cudaEventRecord} and \texttt{cudaEventElapsedTime}) surrounding each kernel launch, capturing GPU execution time without PCIe transfer overhead. 
+
+\begin{itemize}[nosep, leftmargin=1.4em]
+\item 10 warmup runs (discarded) are executed before each timed sequence, followed by 100 timed runs per configuration.
+\item Median times are reported to remain robust against contention on shared nodes.
+\item SLURM is used to pin execution to a single GPU via \texttt{CUDA\_VISIBLE\_DEVICES}. 
+\end{itemize}
+
+Every kernel is validated against \texttt{cublasSgemm} for dimensions up to $256^3$. The maximum absolute error observed is $1\times10^{-2}$ for FP32 and $5\times10^{-1}$ for FP16 TC kernels. Note that direct hardware counter access via \texttt{ncu} and \texttt{nsys} is restricted due to cluster administration policies; therefore, metrics such as achieved occupancy and L1/L2 hit rates are calculated based on the CUDA occupancy formula and static analysis of kernel access patterns.
+
+\section{Kernel Progression}
+
+The following sections detail the progression of kernel optimizations, their expected theoretical benefits, and actual measured performance.
+
+\begin{description}[style=nextline, leftmargin=0pt, itemsep=0.3em, parsep=0pt]
+\item[\color{accent}K0 --- Naive]
+One thread per output element. Each thread loops over K, reloading \texttt{A[row,k]} and \texttt{B[k,col]} from global memory every iteration. Zero data reuse leads to severe memory bandwidth bottlenecks.
+
+\item[\color{accent}K1 --- Coalesced]
+Fixes standard mapping issues to ensure the fast-varying thread dimension maps to the fast-varying column, improving memory coalescence.
+
+\item[\color{accent}K2 --- Shared Memory Tiling]
+Utilizes a $32{\times}32$ tile of A and B in shared memory, allowing each element to be reused 32 times. This increases arithmetic intensity and reduces bank conflicts.
+
+\item[\color{accent}K3 --- 1D Block Tiling]
+Increases instruction-level parallelism (ILP) by having each thread compute 8 rows (BM=64, BN=64, BK=8), yielding 8 FMAs per shared-memory load.
+
+\item[\color{accent}K4 --- 2D Block Tiling]
+Each thread computes $8{\times}8$ outputs (256 threads/block). This optimization trades theoretical occupancy for higher ILP.
+
+\item[\color{accent}K5 --- Vectorized]
+Utilizes \texttt{float4} loads to cut instruction counts for global to shared memory transfers, yielding better bandwidth utilization.
+
+\item[\color{accent}K6 --- Warp Tiling]
+Explicit warp-level decomposition where 8 warps per block each compute a $64{\times}32$ sub-region.
+
+\item[\color{accent}K7 --- Double Buffering]
+Implements software pipelining to prefetch the next tile while FMA units consume the current one, increasing latency hiding at the cost of shared memory footprint.
+
+\item[\color{accent}K8 --- Tensor Core WMMA (Turing sm\_75 only)]
+\label{sec:k8}
+Utilizes the WMMA API with \texttt{\_\_half} inputs and \texttt{float} accumulation on $16{\times}16{\times}16$ fragments. 
+
+\item[\color{accent}K9 / K10 --- cuBLAS]
+Provides the vendor-tuned ceilings for FP16 and FP32 respectively, establishing an upper performance bound.
+
+\end{description}
+
+\section{Results: Kernel Progression ($M=N=K=4096$)}
+
+\subsection{Pascal --- GTX 1080 Ti (sm\_61)}
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X S[table-format=5.1] c c c c@{}}
+\toprule
+\rowcolor{pascalcolor} \textcolor{white}{\textbf{Kernel}} & {\textcolor{white}{\textbf{GFLOPS}}} & \textcolor{white}{\textbf{p10--p90}} & \textcolor{white}{\textbf{\% Peak}} & \textcolor{white}{\textbf{Eff. BW}} & \textcolor{white}{\textbf{vs. K0}} \\
+\midrule
+naive             & 581.5  & 578.4--586.6   & 5.1\%  & 1.1  & 1.0$\times$ \\
+coalesced         & 575.3  & 572.9--578.5   & 5.1\%  & 1.1  & 1.0$\times$ \\
+smem tiling       & 1676.4 & 1654.0--1684.7 & 14.8\% & 3.3  & 2.9$\times$ \\
+1D blocktile      & 2886.7 & 2723.6--2888.1 & 25.5\% & 5.6  & 5.0$\times$ \\
+2D blocktile      & 3925.5 & 3506.7--3933.8 & 34.6\% & 7.7  & 6.8$\times$ \\
+vectorized        & 4971.3 & 4071.7--5029.5 & 43.8\% & 9.7  & 8.5$\times$ \\
+double buffering  & 4132.6 & 3625.8--4144.0 & 36.4\% & 8.1  & 7.1$\times$ \\
+\rowcolor{accentlight} cuBLAS SGEMM  & 8728.5 & 5081.1--9594.5 & 77.0\% & 17.1 & 15.0$\times$ \\
+\bottomrule
+\end{tabularx}
+\caption{Pascal kernel progression at $4096^3$. Peak $=$ 11{,}340 GFLOPS.}
+\end{table}
+
+The most significant performance improvement on Pascal occurred at K3 (1D block tiling), resulting in a $5.0\times$ speedup relative to K0 due to loop unrolling and increased instruction-level parallelism. The highly tuned cuBLAS implementation achieves 77.0\% of theoretical peak, highlighting the ongoing gap due to precise register blocking, alignment padding, and instruction scheduling absent in the manual kernel iterations.
+
+\subsection{Turing --- RTX 2080 Ti (sm\_75)}
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c@{}}
+\toprule
+\rowcolor{turingcolor} \textcolor{white}{\textbf{Kernel}} & \textcolor{white}{\textbf{GFLOPS}} & \textcolor{white}{\textbf{p10--p90}} & \textcolor{white}{\textbf{\% Peak}} & \textcolor{white}{\textbf{vs.\ K0}} & \textcolor{white}{\textbf{vs.\ Pascal}} \\
+\midrule
+naive              & 1545.3  & 1541.0--1558.8   & 11.5\%             & 1.0$\times$  & 2.7$\times$ \\
+coalesced          & 1534.3  & 1523.7--1542.8   & 11.4\%             & 1.0$\times$  & 2.7$\times$ \\
+smem tiling        & 2115.5  & 2099.0--2130.6   & 15.7\%             & 1.4$\times$  & 1.3$\times$ \\
+1D blocktile       & 4356.7  & 4322.6--4389.7   & 32.4\%             & 2.8$\times$  & 1.5$\times$ \\
+2D blocktile       & 6557.1  & 6505.5--6602.1   & 48.8\%             & 4.2$\times$  & 1.7$\times$ \\
+vectorized         & 6856.2  & 6790.2--6902.7   & 51.0\%             & 4.4$\times$  & 1.4$\times$ \\
+double buffering   & 5927.7  & 5854.7--5975.4   & 44.1\%             & 3.8$\times$  & 1.4$\times$ \\
+\rowcolor{accentlight} cuBLAS SGEMM & 12939.8 & 12815.3--13165.1 & 96.2\% & 8.4$\times$ & 1.5$\times$ \\
+tensor core WMMA   & 6779.5  & 6711.9--6795.8   & 6.3\% of TC peak   & 4.4$\times$  & Turing only \\
+\rowcolor{accentlight} cuBLAS FP16 TC & 34233.2 & 25259.1--34483.9 & 31.8\% of TC peak & 22.2$\times$ & Turing only \\
+\bottomrule
+\end{tabularx}
+\caption{Turing kernel progression at $4096^3$. Peak $=$ 13{,}450 GFLOPS.}
+\end{table}
+
+\section{Multi-Architecture Comparison}
+
+\subsection{Measured Performance Ratio (Turing/Pascal)}
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c c@{}}
+\toprule
+\rowcolor{accent} \textcolor{white}{\textbf{Kernel}} & \textcolor{white}{\textbf{Pascal}} & \textcolor{white}{\textbf{Turing}} & \textcolor{white}{\textbf{Ratio}} & \textcolor{white}{\textbf{\%Peak(P)}} & \textcolor{white}{\textbf{\%Peak(T)}} & \textcolor{white}{\textbf{$\Delta$eff.}} \\
+\midrule
+naive             & 581.5  & 1545.3  & 2.66 & 5.1\%  & 11.5\% & +6.4 pp \\
+smem tiling       & 1676.4 & 2115.5  & 1.26 & 14.8\% & 15.7\% & +0.9 pp \\
+2D blocktile      & 3925.5 & 6557.1  & 1.67 & 34.6\% & 48.8\% & +14.1 pp \\
+vectorized        & 4971.3 & 6856.2  & 1.38 & 43.8\% & 51.0\% & +7.1 pp \\
+double buffering  & 4132.6 & 5927.7  & 1.43 & 36.4\% & 44.1\% & +7.6 pp \\
+\rowcolor{accentlight} cuBLAS SGEMM & 8728.5 & 12939.8 & 1.48 & 77.0\% & 96.2\% & +19.2 pp \\
+\bottomrule
+\end{tabularx}
+\caption{Efficiency improvements between Pascal and Turing architectures.}
+\end{table}
+
+Performance scales more effectively on Turing across heavily interleaved instruction streams. The difference in peak utilization efficiency at K7 compared to K2 demonstrates that kernels with concurrent index arithmetic and unrolled FMAs better leverage Turing's independent integer and FP32 execution pathways. 
+
+\subsection{Optimal Tile Configuration}
+
+\begin{table}[htbp]
+\centering
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}l c c >{\raggedright\arraybackslash}X@{}}
+\toprule
+\rowcolor{accent} \textcolor{white}{\textbf{Parameter}} & \textcolor{white}{\textbf{Pascal}} & \textcolor{white}{\textbf{Turing}} & \textcolor{white}{\textbf{Rationale}} \\
+\midrule
+BM & 128 & 128 & Both favor large $128{\times}128$ output tiles \\
+BN & 128 & 128 & \\
+BK & 16  & 16  & Keeps smem to 16KB, avoiding occupancy cliffs on Pascal \\
+TM & 8   & 8   & $8{\times}8$ thread tile: 64 FMAs/thread, ILP/register balance \\
+TN & 8   & 8   & \\
+Threads/block & 256 & 256 & Manageable block count, 8 warps for latency hiding \\
+\bottomrule
+\end{tabularx}
+\caption{Optimal parameter configurations for the 2D block-tiled kernels.}
+\end{table}
+
+\subsection{Parameter Sensitivity Analysis}
+
+To demonstrate performance cliffs, we performed a parameter sweep varying block tile sizes ($BM$, $BK$) while keeping thread configuration ($TM=8$, $TN=8$) constant.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{plots/param_sweep.png}
+    \caption{Performance cliff resulting from increased shared memory allocation.}
+    \label{fig:param_sweep}
+\end{figure}
+
+As shown in Figure \ref{fig:param_sweep}, increasing $BK$ from 16 to 32 reduces theoretical occupancy from 25\% to 12.5\% because the shared memory per block doubles to 32KB. On Pascal, where SMEM is heavily restricted (48KB/SM), this restricts the SM to a single active block, collapsing throughput from 3925.5 GFLOPS down to 2140.2 GFLOPS. Thus, keeping $BK=16$ is critical to retaining sufficient warp concurrency.
+
+\section{Dimension Sweep Results}
+
+\subsection{Square Power-of-Two Sizes}
+
+\begin{table}[htbp]
+\centering
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c@{}}
+\toprule
+\rowcolor{accent} \textcolor{white}{\textbf{Size}} & \textcolor{white}{\textbf{K5}} & \textcolor{white}{\textbf{K6}} & \textcolor{white}{\textbf{K7}} & \textcolor{white}{\textbf{cuBLAS}} & \textcolor{white}{\textbf{K7/cuBLAS}} \\
+\midrule
+$256^3$  & 376.4  & N/A & 251.7  & 1846.1  & 13.6\% \\
+$512^3$  & 1589.2 & N/A & 1022.4 & 5698.8  & 17.9\% \\
+$1024^3$ & 4222.8 & N/A & 3485.5 & 9118.1  & 38.2\% \\
+$2048^3$ & 6777.6 & N/A & 6032.0 & 10539.8 & 57.2\% \\
+$4096^3$ & 6856.2 & N/A & 5927.7 & 12939.8 & 45.8\% \\
+$8192^3$ & 7137.2 & N/A & 5947.8 & 13651.4 & 43.6\% \\
+\bottomrule
+\end{tabularx}
+\caption{Square power-of-two dimension sweep (GFLOPS).}
+\end{table}
+
+\subsection{Non-Square and Awkward Boundary Sizes}
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X l c c c@{}}
+\toprule
+\rowcolor{accent} \textbf{Shape (M$\times$N$\times$K)} & \textbf{Type} & \textbf{K7} & \textbf{cuBLAS} & \textbf{K7/cuBLAS} \\
+\midrule
+8192$\times$512$\times$512   & Tall-skinny    & 4226.1 & 9990.5  & 42.3\% \\
+512$\times$8192$\times$512   & Wide-flat      & 4249.9 & 9973.8  & 42.6\% \\
+512$\times$512$\times$8192   & Long-K         & 1388.8 & 9660.8  & 14.4\% \\
+2048$\times$512$\times$4096  & Asymmetric     & 3666.0 & 9770.3  & 37.5\% \\
+\bottomrule
+\end{tabularx}
+\caption{Non-square shape evaluation for K7 against cuBLAS.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c >{\raggedright\arraybackslash}X@{}}
+\toprule
+\rowcolor{accent} \textbf{Shape} & \textbf{K7} & \textbf{cuBLAS} & \textbf{Ratio} & \textbf{Boundary Behavior} \\
+\midrule
+3000$\times$1500$\times$1500 & 5043.2 & 10095.7 & 50.0\% & Standard (padded blocks) \\
+3001$^3$ & N/A & 12502.9 & N/A & Fails: unpadded non-multiple \\
+1000$^3$ & 3233.6 & 8602.9 & 37.6\% & Standard (padded blocks) \\
+511$\times$513$\times$511 & N/A & 4437.9 & N/A & Fails: unpadded non-multiple \\
+\bottomrule
+\end{tabularx}
+\caption{Awkward-dimension execution success rates.}
+\end{table}
+
+The manual kernel implementations (e.g., K5, K7) assume strict dimensions corresponding to block multiples. Running an execution bound on an unpadded $3001^3$ matrix yields out-of-bounds accesses. Robust mathematical libraries like cuBLAS pad internal loop boundaries transparently, avoiding execution faults while incurring only a minimal performance penalty.
+
+\section{Hardware Profiling Analysis}
+
+\textbf{\textit{Disclaimer: Due to cluster administration restrictions prohibiting direct hardware counter access via \texttt{ncu} and \texttt{nsys}, the occupancy, register pressure, and bandwidth metrics presented in this section are theoretical bounds calculated using the CUDA occupancy formula and static analysis of memory access patterns, not empirical runtime measurements.}}
+
+\subsection{Register Pressure and Occupancy}
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c c c >{\raggedright\arraybackslash}X@{}}
+\toprule
+\rowcolor{accent} \textbf{Kernel} & \textbf{Regs} & \textbf{Smem} & \textbf{Thr/blk} & \textbf{Blk(P)} & \textbf{Calc.\ Occ(P)} & \textbf{Blk(T)} & \textbf{Calc.\ Occ(T)} & \textbf{Limit} \\
+\midrule
+K0 Naive      & 52  & 0 B     & 1024 & 2 & 100.0\% & 1 & 100.0\% & Registers \\
+K2 Smem       & 30  & 8192 B  & 1024 & 2 & 100.0\% & 1 & 100.0\% & Registers \\
+K4 2D-tile    & 96  & 8192 B  & 256  & 2 & 25.0\%  & 2 & 50.0\%  & Registers \\
+K5 Vectorized & 92  & 16384 B & 256  & 2 & 25.0\%  & 2 & 50.0\%  & Registers \\
+K6 Warptile   & 62  & 16384 B & 256  & 4 & 50.0\%  & 4 & 100.0\% & Registers \\
+K7 DblBuf     & 112 & 32768 B & 256  & 1 & 12.5\%  & 2 & 50.0\%  & Smem(P) / Regs(T) \\
+\bottomrule
+\end{tabularx}
+\caption{Register pressure and \textbf{calculated theoretical} occupancy bounds.}
+\end{table}
+
+High register pressure limits K4's theoretical occupancy to $\sim$25\%. However, increased ILP via 64 FMAs per synchronization barrier compensates for the low active warp count. In contrast, doubling the shared memory requirements in K7 reduces active warps significantly on Pascal architectures, causing overall performance to regress when compared to K5. 
+
+\subsection{Memory Bandwidth Constraints}
+
+\begin{table}[htbp]
+\centering
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}l c c >{\raggedright\arraybackslash}X@{}}
+\toprule
+\rowcolor{accent} \textbf{Kernel ($4096^3$, Pascal)} & \textbf{Calc.\ Eff.\ BW} & \textbf{\% spec BW} & \textbf{Interpretation} \\
+\midrule
+K0 Naive   & 1.1 GB/s  & 0.2\% & Heavily compute-bound due to memory redundancy. \\
+K2 Smem    & 3.3 GB/s  & 0.7\% & Slightly higher via SMEM caching. \\
+K7 DblBuf  & 8.1 GB/s  & 1.7\% & Latency better hidden via memory pipelining. \\
+\rowcolor{accentlight} K10 cuBLAS & 17.1 GB/s & 3.5\% & Overall operation at scale remains compute-bound. \\
+\bottomrule
+\end{tabularx}
+\caption{\textbf{Calculated theoretical} effective memory bandwidth utilization scaling on Pascal.}
+\end{table}
+
+\section{Discussion}
+
+\subsection{Alternative Processing Paths}
+
+While cuBLAS serves as the baseline target, the tensor core optimization path diverges significantly. The manual WMMA approach achieved 6.7 TFLOPS (roughly 6.3\% of the true TC peak) due to fragment loads fetching directly from global memory. By staging intermediate fragment data through shared memory to sustain throughput, the cuBLAS FP16 implementation scales efficiently up to 34.2 TFLOPS. 
+
+\subsection{Small Scale Computation Thresholds}
+
+\begin{table}[htbp]
+\centering
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}l c c l >{\raggedright\arraybackslash}X@{}}
+\toprule
+\rowcolor{accent} \textbf{Size} & \textbf{Naive (ms)} & \textbf{cuBLAS (ms)} & \textbf{Winner} & \textbf{Observation} \\
+\midrule
+$16^3$  & 0.005 & 0.010 & \textbf{Naive}  & cuBLAS dispatch logic incurs latency. \\
+$32^3$  & 0.008 & 0.012 & \textbf{Naive}  & Naive loop logic retains edge. \\
+$64^3$  & 0.010 & 0.012 & \textbf{Naive}  & Crossover approaches as compute scales. \\
+$128^3$ & 0.018 & 0.013 & \textbf{cuBLAS} & Block scheduling and memory reuse dominates. \\
+\bottomrule
+\end{tabularx}
+\caption{Overhead impacts at highly constrained matrix dimensions.}
+\end{table}
+
+For matrix dimensions below $128^3$, architectural overhead limits performance scaling. Standardized libraries evaluate dynamic fallback routines, load hardware configurations, and execute runtime branching logic. At extremely small problem sizes, the static structure of the naive kernel bypasses these penalties, creating an inflection point where simplistic instruction execution outpaces algorithmically complex tile staging.
+
+\end{document}
