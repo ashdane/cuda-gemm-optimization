@@ -275,7 +275,7 @@ Threads/block & 256 & 256 & Manageable block count, 8 warps for latency hiding \
 
 \subsection{Parameter Sensitivity Analysis}
 
-\textbf{\textit{Disclaimer: The parameter sweep performance values detailed below are estimated via the theoretical occupancy and register models, rather than empirically measured on hardware.}}
+\textbf{\textit{Disclaimer: The parameter sweep performance values detailed below are estimated via the occupancy model / ptxas static analysis, not measured on hardware.}}
 
 To analyze performance cliffs systematically without direct hardware iteration, we modeled parameter sweeps across block tile dimensions (recorded in \texttt{results/param\_sweep\_modeled.csv}). We varied $BK$ and $BM$ independently to observe the theoretical transition points.
 
