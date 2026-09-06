@@ -372,11 +372,11 @@ The manual kernel implementations (e.g., K5, K7) assume strict dimensions corres
 \toprule
 \rowcolor{accent} \textbf{Kernel} & \textbf{Regs} & \textbf{Smem} & \textbf{Thr/blk} & \textbf{Blk(P)} & \textbf{Calc.\ Occ(P)} & \textbf{Blk(T)} & \textbf{Calc.\ Occ(T)} & \textbf{Limit} \\
 \midrule
-K0 Naive      & 52  & 0 B     & 1024 & 2 & 100.0\% & 1 & 100.0\% & Registers \\
+K0 Naive      & 32  & 0 B     & 1024 & 2 & 100.0\% & 1 & 100.0\% & Registers \\
 K2 Smem       & 30  & 8192 B  & 1024 & 2 & 100.0\% & 1 & 100.0\% & Registers \\
 K4 2D-tile    & 96  & 8192 B  & 256  & 2 & 25.0\%  & 2 & 50.0\%  & Registers \\
 K5 Vectorized & 92  & 16384 B & 256  & 2 & 25.0\%  & 2 & 50.0\%  & Registers \\
-K6 Warptile   & 62  & 16384 B & 256  & 4 & 50.0\%  & 4 & 100.0\% & Registers \\
+K6 Warptile   & 64  & 16384 B & 256  & 3 & 37.5\%  & 4 & 100.0\% & Smem(P) / Regs(T) \\
 K7 DblBuf     & 112 & 32768 B & 256  & 1 & 12.5\%  & 2 & 50.0\%  & Smem(P) / Regs(T) \\
 \bottomrule
 \end{tabularx}
