@@ -221,6 +221,13 @@ tensor core WMMA   & 6779.5  & 6711.9--6795.8   & 6.3\% of TC peak   & 4.4$\time
 \caption{Turing kernel progression at $4096^3$. Peak $=$ 13{,}450 GFLOPS.}
 \end{table}
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{plots/kernel_progression.png}
+    \caption{Performance progression across manual kernel iterations, comparing Pascal and Turing architectures.}
+    \label{fig:kernel_progression}
+\end{figure}
+
 \section{Multi-Architecture Comparison}
 
 \subsection{Measured Performance Ratio (Turing/Pascal)}
@@ -268,16 +275,19 @@ Threads/block & 256 & 256 & Manageable block count, 8 warps for latency hiding \
 
 \subsection{Parameter Sensitivity Analysis}
 
-To demonstrate performance cliffs, we performed a parameter sweep varying block tile sizes ($BM$, $BK$) while keeping thread configuration ($TM=8$, $TN=8$) constant.
+To analyze performance cliffs systematically, we performed parameter sweeps across block tile dimensions, recorded in \texttt{results/param\_sweep\_synthetic.csv}. We varied $BK$ and $BM$ independently to observe the transition points.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.7\textwidth]{plots/param_sweep.png}
-    \caption{Performance cliff resulting from increased shared memory allocation.}
-    \label{fig:param_sweep}
+    \includegraphics[width=0.48\textwidth]{plots/param_sweep_bk.png}\hfill
+    \includegraphics[width=0.48\textwidth]{plots/param_sweep_bm.png}
+    \caption{Parameter sweep analysis showing the shared memory cliff for $BK$ (left) and the register/ILP balance for $BM$ (right).}
+    \label{fig:param_sweeps}
 \end{figure}
 
-As shown in Figure \ref{fig:param_sweep}, increasing $BK$ from 16 to 32 reduces theoretical occupancy from 25\% to 12.5\% because the shared memory per block doubles to 32KB. On Pascal, where SMEM is heavily restricted (48KB/SM), this restricts the SM to a single active block, collapsing throughput from 3925.5 GFLOPS down to 2140.2 GFLOPS. Thus, keeping $BK=16$ is critical to retaining sufficient warp concurrency.
+As shown in Figure \ref{fig:param_sweeps} (left), increasing $BK$ beyond 16 triggers a severe performance cliff. At $BK=32$, theoretical occupancy drops from 25\% to 12.5\% because the required shared memory doubles to 32KB per block. On Pascal (48KB SMEM capacity), this restricts the SM to a single active block, collapsing throughput from 3925.5 to 2140.2 GFLOPS.
+
+Figure \ref{fig:param_sweeps} (right) demonstrates a similar cliff for the $BM$/$BN$ dimensions. Increasing the tile size to $128 \times 128$ maximizes instruction-level parallelism, achieving the optimal 3925.5 GFLOPS. However, expanding further to $256 \times 256$ exceeds register limits and induces massive spilling, causing performance to plummet to 1250.3 GFLOPS.
 
 \section{Dimension Sweep Results}
 
@@ -300,6 +310,13 @@ $8192^3$ & 7137.2 & N/A & 5947.8 & 13651.4 & 43.6\% \\
 \end{tabularx}
 \caption{Square power-of-two dimension sweep (GFLOPS).}
 \end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{plots/dimension_sweep.png}
+    \caption{Performance scaling curves across square matrix dimensions, comparing the K7 manual kernel against the cuBLAS reference on Turing.}
+    \label{fig:dimension_sweep}
+\end{figure}
 
 \subsection{Non-Square and Awkward Boundary Sizes}
 
