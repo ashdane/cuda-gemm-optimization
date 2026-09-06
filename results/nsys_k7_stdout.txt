@@ -1,0 +1,68 @@
+WARNING: Device-side CUDA Event completion trace is currently enabled.
+         This may increase runtime overhead and the likelihood of false
+         dependencies across CUDA Streams. If you wish to avoid this, please
+         disable the feature with --cuda-event-trace=false.
+WARNING: CPU IP/backtrace sampling not supported, disabling.
+Try the 'nsys status --environment' command to learn more.
+
+WARNING: CPU context switch tracing not supported, disabling.
+Try the 'nsys status --environment' command to learn more.
+
+7,double_buffering,4096,4096,4096,6061.685,67.294,5993.784,6141.152,22.6734,0.2488,11.84,PASS,0.000003,NVIDIA GeForce RTX 2080 Ti,68,7,5,10.57
+# kernel=double_buffering M=4096 N=4096 K=4096 iters=20
+# GFLOPS: median=6061.68 p10=5993.78 p90=6141.15 stddev=67.29
+# Time(ms): median=22.6734 stddev=0.2488
+# EffBW(GB/s): 11.84
+# Correctness: PASS (max_abs_err=3.34e-06)
+Collecting data...
+Generating '/tmp/nsys-report-bbd3.qdstrm'
+[1/6] [0%                          ] nsys_turing_k7_4096.nsys-rep[1/6] [0%                          ] nsys_turing_k7_4096.nsys-rep[1/6] [==========48%               ] nsys_turing_k7_4096.nsys-rep[1/6] [================71%         ] nsys_turing_k7_4096.nsys-rep[1/6] [=======================94%  ] nsys_turing_k7_4096.nsys-rep[1/6] [=======================95%  ] nsys_turing_k7_4096.nsys-rep[1/6] [========================100%] nsys_turing_k7_4096.nsys-rep[1/6] [========================100%] nsys_turing_k7_4096.nsys-rep
+[2/6] [0%                          ] nsys_turing_k7_4096.sqlite[2/6] [1%                          ] nsys_turing_k7_4096.sqlite[2/6] [2%                          ] nsys_turing_k7_4096.sqlite[2/6] [3%                          ] nsys_turing_k7_4096.sqlite[2/6] [4%                          ] nsys_turing_k7_4096.sqlite[2/6] [5%                          ] nsys_turing_k7_4096.sqlite[2/6] [6%                          ] nsys_turing_k7_4096.sqlite[2/6] [7%                          ] nsys_turing_k7_4096.sqlite[2/6] [8%                          ] nsys_turing_k7_4096.sqlite[2/6] [9%                          ] nsys_turing_k7_4096.sqlite[2/6] [10%                         ] nsys_turing_k7_4096.sqlite[2/6] [11%                         ] nsys_turing_k7_4096.sqlite[2/6] [12%                         ] nsys_turing_k7_4096.sqlite[2/6] [13%                         ] nsys_turing_k7_4096.sqlite[2/6] [14%                         ] nsys_turing_k7_4096.sqlite[2/6] [=15%                        ] nsys_turing_k7_4096.sqlite[2/6] [=16%                        ] nsys_turing_k7_4096.sqlite[2/6] [=17%                        ] nsys_turing_k7_4096.sqlite[2/6] [==18%                       ] nsys_turing_k7_4096.sqlite[2/6] [==19%                       ] nsys_turing_k7_4096.sqlite[2/6] [==20%                       ] nsys_turing_k7_4096.sqlite[2/6] [==21%                       ] nsys_turing_k7_4096.sqlite[2/6] [===22%                      ] nsys_turing_k7_4096.sqlite[2/6] [===23%                      ] nsys_turing_k7_4096.sqlite[2/6] [===24%                      ] nsys_turing_k7_4096.sqlite[2/6] [====25%                     ] nsys_turing_k7_4096.sqlite[2/6] [====26%                     ] nsys_turing_k7_4096.sqlite[2/6] [====27%                     ] nsys_turing_k7_4096.sqlite[2/6] [====28%                     ] nsys_turing_k7_4096.sqlite[2/6] [=====29%                    ] nsys_turing_k7_4096.sqlite[2/6] [=====30%                    ] nsys_turing_k7_4096.sqlite[2/6] [=====31%                    ] nsys_turing_k7_4096.sqlite[2/6] [=====32%                    ] nsys_turing_k7_4096.sqlite[2/6] [======33%                   ] nsys_turing_k7_4096.sqlite[2/6] [======34%                   ] nsys_turing_k7_4096.sqlite[2/6] [======35%                   ] nsys_turing_k7_4096.sqlite[2/6] [=======36%                  ] nsys_turing_k7_4096.sqlite[2/6] [=======37%                  ] nsys_turing_k7_4096.sqlite[2/6] [=======38%                  ] nsys_turing_k7_4096.sqlite[2/6] [=======39%                  ] nsys_turing_k7_4096.sqlite[2/6] [========40%                 ] nsys_turing_k7_4096.sqlite[2/6] [========41%                 ] nsys_turing_k7_4096.sqlite[2/6] [========42%                 ] nsys_turing_k7_4096.sqlite[2/6] [=========43%                ] nsys_turing_k7_4096.sqlite[2/6] [=========44%                ] nsys_turing_k7_4096.sqlite[2/6] [=========45%                ] nsys_turing_k7_4096.sqlite[2/6] [=========46%                ] nsys_turing_k7_4096.sqlite[2/6] [==========47%               ] nsys_turing_k7_4096.sqlite[2/6] [==========48%               ] nsys_turing_k7_4096.sqlite[2/6] [==========49%               ] nsys_turing_k7_4096.sqlite[2/6] [===========50%              ] nsys_turing_k7_4096.sqlite[2/6] [===========51%              ] nsys_turing_k7_4096.sqlite[2/6] [===========52%              ] nsys_turing_k7_4096.sqlite[2/6] [===========53%              ] nsys_turing_k7_4096.sqlite[2/6] [============54%             ] nsys_turing_k7_4096.sqlite[2/6] [============55%             ] nsys_turing_k7_4096.sqlite[2/6] [============56%             ] nsys_turing_k7_4096.sqlite[2/6] [============57%             ] nsys_turing_k7_4096.sqlite[2/6] [=============58%            ] nsys_turing_k7_4096.sqlite[2/6] [=============59%            ] nsys_turing_k7_4096.sqlite[2/6] [=============60%            ] nsys_turing_k7_4096.sqlite[2/6] [==============61%           ] nsys_turing_k7_4096.sqlite[2/6] [==============62%           ] nsys_turing_k7_4096.sqlite[2/6] [==============63%           ] nsys_turing_k7_4096.sqlite[2/6] [==============64%           ] nsys_turing_k7_4096.sqlite[2/6] [===============65%          ] nsys_turing_k7_4096.sqlite[2/6] [===============66%          ] nsys_turing_k7_4096.sqlite[2/6] [===============67%          ] nsys_turing_k7_4096.sqlite[2/6] [================68%         ] nsys_turing_k7_4096.sqlite[2/6] [================69%         ] nsys_turing_k7_4096.sqlite[2/6] [================70%         ] nsys_turing_k7_4096.sqlite[2/6] [================71%         ] nsys_turing_k7_4096.sqlite[2/6] [=================72%        ] nsys_turing_k7_4096.sqlite[2/6] [=================73%        ] nsys_turing_k7_4096.sqlite[2/6] [=================74%        ] nsys_turing_k7_4096.sqlite[2/6] [==================75%       ] nsys_turing_k7_4096.sqlite[2/6] [==================76%       ] nsys_turing_k7_4096.sqlite[2/6] [==================77%       ] nsys_turing_k7_4096.sqlite[2/6] [==================78%       ] nsys_turing_k7_4096.sqlite[2/6] [===================79%      ] nsys_turing_k7_4096.sqlite[2/6] [===================80%      ] nsys_turing_k7_4096.sqlite[2/6] [===================81%      ] nsys_turing_k7_4096.sqlite[2/6] [===================82%      ] nsys_turing_k7_4096.sqlite[2/6] [====================83%     ] nsys_turing_k7_4096.sqlite[2/6] [====================84%     ] nsys_turing_k7_4096.sqlite[2/6] [====================85%     ] nsys_turing_k7_4096.sqlite[2/6] [=====================86%    ] nsys_turing_k7_4096.sqlite[2/6] [=====================87%    ] nsys_turing_k7_4096.sqlite[2/6] [=====================88%    ] nsys_turing_k7_4096.sqlite[2/6] [=====================89%    ] nsys_turing_k7_4096.sqlite[2/6] [======================90%   ] nsys_turing_k7_4096.sqlite[2/6] [======================91%   ] nsys_turing_k7_4096.sqlite[2/6] [======================92%   ] nsys_turing_k7_4096.sqlite[2/6] [=======================93%  ] nsys_turing_k7_4096.sqlite[2/6] [=======================94%  ] nsys_turing_k7_4096.sqlite[2/6] [=======================95%  ] nsys_turing_k7_4096.sqlite[2/6] [=======================96%  ] nsys_turing_k7_4096.sqlite[2/6] [========================97% ] nsys_turing_k7_4096.sqlite[2/6] [========================98% ] nsys_turing_k7_4096.sqlite[2/6] [========================99% ] nsys_turing_k7_4096.sqlite[2/6] [========================100%] nsys_turing_k7_4096.sqlite[2/6] [========================100%] nsys_turing_k7_4096.sqlite
+[3/6] Executing 'cuda_api_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls    Avg (ns)      Med (ns)     Min (ns)    Max (ns)    StdDev (ns)                 Name               
+ --------  ---------------  ---------  ------------  ------------  ----------  -----------  ------------  ---------------------------------
+     53.8      454,367,771         20  22,718,388.6  22,779,144.0  22,158,183   23,178,822     248,700.8  cudaEventSynchronize             
+     27.1      228,597,053         11  20,781,550.3     204,882.0       2,249  224,394,237  67,532,387.1  cudaFree                         
+     17.0      143,494,667          7  20,499,238.1       3,591.0       1,003  143,342,741  54,168,914.2  cudaDeviceSynchronize            
+      1.8       15,350,696          6   2,558,449.3      65,709.0      44,389    7,708,010   3,878,716.3  cudaMemcpy                       
+      0.1        1,129,964          1   1,129,964.0   1,129,964.0   1,129,964    1,129,964           0.0  cudaGetDeviceProperties_v2_v12000
+      0.1          447,638         10      44,763.8      43,647.5       2,412       98,228      40,722.3  cudaMalloc                       
+      0.0          347,502         27      12,870.4       4,152.0       3,111      220,121      41,526.9  cudaLaunchKernel                 
+      0.0          211,441         24       8,810.0       6,412.0       4,598       61,200      11,286.0  cudaMemset                       
+      0.0          152,253         40       3,806.3       3,580.0       2,925       10,247       1,197.9  cudaEventRecord                  
+      0.0          144,546        838         172.5         135.0          80          796         104.2  cuGetProcAddress_v2              
+      0.0           42,832          1      42,832.0      42,832.0      42,832       42,832           0.0  cudaMemGetInfo                   
+      0.0           31,164         18       1,731.3         445.0         435       10,273       2,672.3  cudaEventCreateWithFlags         
+      0.0            9,320         20         466.0         361.0         248        1,571         321.1  cudaEventDestroy                 
+      0.0            7,097          4       1,774.3       1,699.5       1,365        2,333         424.7  cuInit                           
+      0.0            5,859          2       2,929.5       2,929.5         561        5,298       3,349.6  cudaEventCreate                  
+      0.0              948          2         474.0         474.0         283          665         270.1  cudaGetDriverEntryPoint_v11030   
+      0.0              905          3         301.7         123.0         103          679         326.9  cuModuleGetLoadingMode           
+
+[4/6] Executing 'cuda_gpu_kern_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances    Avg (ns)      Med (ns)    Min (ns)   Max (ns)   StdDev (ns)                                             Name                                            
+ --------  ---------------  ---------  ------------  ------------  --------  ----------  -----------  -------------------------------------------------------------------------------------------
+    100.0      595,588,601         26  22,907,253.9  22,692,792.5   131,199  30,532,094  5,374,995.7  sgemm_double_buf_pascal(int, int, int, float, const float *, const float *, float, float *)
+      0.0           11,648          1      11,648.0      11,648.0    11,648      11,648          0.0  volta_sgemm_32x32_sliced1x4_nn                                                             
+
+[5/6] Executing 'cuda_gpu_mem_time_sum' stats report
+
+ Time (%)  Total Time (ns)  Count   Avg (ns)     Med (ns)    Min (ns)  Max (ns)   StdDev (ns)           Operation          
+ --------  ---------------  -----  -----------  -----------  --------  ---------  -----------  ----------------------------
+     85.5       14,986,290      4  3,746,572.5  3,668,349.0    23,968  7,625,624  4,300,318.7  [CUDA memcpy Host-to-Device]
+     14.2        2,496,047     24    104,002.0    113,007.0     1,792    115,616     31,474.4  [CUDA memset]               
+      0.2           41,951      2     20,975.5     20,975.5    20,928     21,023         67.2  [CUDA memcpy Device-to-Host]
+
+[6/6] Executing 'cuda_gpu_mem_size_sum' stats report
+
+ Total (MB)  Count  Avg (MB)  Med (MB)  Min (MB)  Max (MB)  StdDev (MB)           Operation          
+ ----------  -----  --------  --------  --------  --------  -----------  ----------------------------
+  1,476.919     24    61.538    67.109     0.262    67.109       18.873  [CUDA memset]               
+    134.742      4    33.686    33.686     0.262    67.109       38.594  [CUDA memcpy Host-to-Device]
+      0.524      2     0.262     0.262     0.262     0.262        0.000  [CUDA memcpy Device-to-Host]
+
+Generated:
+	/scratch/ashish123/cuda_gemm_turing_2689252/nsys_turing_k7_4096.nsys-rep
+	/scratch/ashish123/cuda_gemm_turing_2689252/nsys_turing_k7_4096.sqlite

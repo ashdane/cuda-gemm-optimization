@@ -1,0 +1,50 @@
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z11sgemm_naiveiiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z11sgemm_naiveiiifPKfS0_fPf
+ptxas info    : Used 52 registers, used 0 barriers, 400 bytes cmem[0]
+ptxas info    : Compile time = 8.155 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z15sgemm_coalescediiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z15sgemm_coalescediiifPKfS0_fPf
+ptxas info    : Used 52 registers, used 0 barriers, 400 bytes cmem[0]
+ptxas info    : Compile time = 8.196 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z10sgemm_smemiiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z10sgemm_smemiiifPKfS0_fPf
+ptxas info    : Used 42 registers, used 1 barriers, 8192 bytes smem, 400 bytes cmem[0]
+ptxas info    : Compile time = 7.466 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18sgemm_1d_blocktileiiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z18sgemm_1d_blocktileiiifPKfS0_fPf
+ptxas info    : Used 66 registers, used 1 barriers, 4096 bytes smem, 400 bytes cmem[0]
+ptxas info    : Compile time = 11.522 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18sgemm_2d_blocktileiiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z18sgemm_2d_blocktileiiifPKfS0_fPf
+ptxas info    : Used 94 registers, used 1 barriers, 8192 bytes smem, 400 bytes cmem[0]
+ptxas info    : Compile time = 48.240 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z16sgemm_vectorizediiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z16sgemm_vectorizediiifPKfS0_fPf
+ptxas info    : Used 93 registers, used 1 barriers, 16384 bytes smem, 400 bytes cmem[0]
+ptxas info    : Compile time = 39.879 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z14sgemm_warptileiiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z14sgemm_warptileiiifPKfS0_fPf
+ptxas info    : Used 62 registers, used 1 barriers, 16384 bytes smem, 400 bytes cmem[0]
+ptxas info    : Compile time = 31.663 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z23sgemm_double_buf_pascaliiifPKfS0_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z23sgemm_double_buf_pascaliiifPKfS0_fPf
+ptxas info    : Used 96 registers, used 1 barriers, 64 bytes cumulative stack size, 32768 bytes smem, 400 bytes cmem[0]
+ptxas info    : Compile time = 86.113 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z13sgemm_tc_wmmaiiifPK6__halfS1_fPf' for 'sm_75'
+ptxas info    : Function properties for _Z13sgemm_tc_wmmaiiifPK6__halfS1_fPf
+ptxas info    : Used 64 registers, used 0 barriers, 400 bytes cmem[0]
+ptxas info    : Compile time = 16.437 ms
+ptxas info    : Compiling entry function '_Z12fp32_to_fp16PKfP6__halfi' for 'sm_75'
+ptxas info    : Function properties for _Z12fp32_to_fp16PKfP6__halfi
+ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 1.009 ms

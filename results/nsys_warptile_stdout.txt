@@ -1,0 +1,68 @@
+WARNING: Device-side CUDA Event completion trace is currently enabled.
+         This may increase runtime overhead and the likelihood of false
+         dependencies across CUDA Streams. If you wish to avoid this, please
+         disable the feature with --cuda-event-trace=false.
+WARNING: CPU IP/backtrace sampling not supported, disabling.
+Try the 'nsys status --environment' command to learn more.
+
+WARNING: CPU context switch tracing not supported, disabling.
+Try the 'nsys status --environment' command to learn more.
+
+6,warptile,4096,4096,4096,5025.111,356.918,4555.866,5315.688,27.3504,2.1519,9.81,FAIL,5.685188,NVIDIA GeForce GTX 1080 Ti,28,6,1,10.90
+# kernel=warptile M=4096 N=4096 K=4096 iters=20
+# GFLOPS: median=5025.11 p10=4555.87 p90=5315.69 stddev=356.92
+# Time(ms): median=27.3504 stddev=2.1519
+# EffBW(GB/s): 9.81
+# Correctness: FAIL (max_abs_err=5.69e+00)
+Collecting data...
+Generating '/tmp/nsys-report-f5ae.qdstrm'
+[1/6] [0%                          ] nsys_pascal_warptile_4096.nsys-rep[1/6] [0%                          ] nsys_pascal_warptile_4096.nsys-rep[1/6] [==========47%               ] nsys_pascal_warptile_4096.nsys-rep[1/6] [================71%         ] nsys_pascal_warptile_4096.nsys-rep[1/6] [=======================94%  ] nsys_pascal_warptile_4096.nsys-rep[1/6] [=======================95%  ] nsys_pascal_warptile_4096.nsys-rep[1/6] [========================100%] nsys_pascal_warptile_4096.nsys-rep[1/6] [========================100%] nsys_pascal_warptile_4096.nsys-rep
+[2/6] [0%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [1%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [2%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [3%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [4%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [5%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [6%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [7%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [8%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [9%                          ] nsys_pascal_warptile_4096.sqlite[2/6] [10%                         ] nsys_pascal_warptile_4096.sqlite[2/6] [11%                         ] nsys_pascal_warptile_4096.sqlite[2/6] [12%                         ] nsys_pascal_warptile_4096.sqlite[2/6] [13%                         ] nsys_pascal_warptile_4096.sqlite[2/6] [14%                         ] nsys_pascal_warptile_4096.sqlite[2/6] [=15%                        ] nsys_pascal_warptile_4096.sqlite[2/6] [=16%                        ] nsys_pascal_warptile_4096.sqlite[2/6] [=17%                        ] nsys_pascal_warptile_4096.sqlite[2/6] [==18%                       ] nsys_pascal_warptile_4096.sqlite[2/6] [==19%                       ] nsys_pascal_warptile_4096.sqlite[2/6] [==20%                       ] nsys_pascal_warptile_4096.sqlite[2/6] [==21%                       ] nsys_pascal_warptile_4096.sqlite[2/6] [===22%                      ] nsys_pascal_warptile_4096.sqlite[2/6] [===23%                      ] nsys_pascal_warptile_4096.sqlite[2/6] [===24%                      ] nsys_pascal_warptile_4096.sqlite[2/6] [====25%                     ] nsys_pascal_warptile_4096.sqlite[2/6] [====26%                     ] nsys_pascal_warptile_4096.sqlite[2/6] [====27%                     ] nsys_pascal_warptile_4096.sqlite[2/6] [====28%                     ] nsys_pascal_warptile_4096.sqlite[2/6] [=====29%                    ] nsys_pascal_warptile_4096.sqlite[2/6] [=====30%                    ] nsys_pascal_warptile_4096.sqlite[2/6] [=====31%                    ] nsys_pascal_warptile_4096.sqlite[2/6] [=====32%                    ] nsys_pascal_warptile_4096.sqlite[2/6] [======33%                   ] nsys_pascal_warptile_4096.sqlite[2/6] [======34%                   ] nsys_pascal_warptile_4096.sqlite[2/6] [======35%                   ] nsys_pascal_warptile_4096.sqlite[2/6] [=======36%                  ] nsys_pascal_warptile_4096.sqlite[2/6] [=======37%                  ] nsys_pascal_warptile_4096.sqlite[2/6] [=======38%                  ] nsys_pascal_warptile_4096.sqlite[2/6] [=======39%                  ] nsys_pascal_warptile_4096.sqlite[2/6] [========40%                 ] nsys_pascal_warptile_4096.sqlite[2/6] [========41%                 ] nsys_pascal_warptile_4096.sqlite[2/6] [========42%                 ] nsys_pascal_warptile_4096.sqlite[2/6] [=========43%                ] nsys_pascal_warptile_4096.sqlite[2/6] [=========44%                ] nsys_pascal_warptile_4096.sqlite[2/6] [=========45%                ] nsys_pascal_warptile_4096.sqlite[2/6] [=========46%                ] nsys_pascal_warptile_4096.sqlite[2/6] [==========47%               ] nsys_pascal_warptile_4096.sqlite[2/6] [==========48%               ] nsys_pascal_warptile_4096.sqlite[2/6] [==========49%               ] nsys_pascal_warptile_4096.sqlite[2/6] [===========50%              ] nsys_pascal_warptile_4096.sqlite[2/6] [===========51%              ] nsys_pascal_warptile_4096.sqlite[2/6] [===========52%              ] nsys_pascal_warptile_4096.sqlite[2/6] [===========53%              ] nsys_pascal_warptile_4096.sqlite[2/6] [============54%             ] nsys_pascal_warptile_4096.sqlite[2/6] [============55%             ] nsys_pascal_warptile_4096.sqlite[2/6] [============56%             ] nsys_pascal_warptile_4096.sqlite[2/6] [============57%             ] nsys_pascal_warptile_4096.sqlite[2/6] [=============58%            ] nsys_pascal_warptile_4096.sqlite[2/6] [=============59%            ] nsys_pascal_warptile_4096.sqlite[2/6] [=============60%            ] nsys_pascal_warptile_4096.sqlite[2/6] [==============61%           ] nsys_pascal_warptile_4096.sqlite[2/6] [==============62%           ] nsys_pascal_warptile_4096.sqlite[2/6] [==============63%           ] nsys_pascal_warptile_4096.sqlite[2/6] [==============64%           ] nsys_pascal_warptile_4096.sqlite[2/6] [===============65%          ] nsys_pascal_warptile_4096.sqlite[2/6] [===============66%          ] nsys_pascal_warptile_4096.sqlite[2/6] [===============67%          ] nsys_pascal_warptile_4096.sqlite[2/6] [================68%         ] nsys_pascal_warptile_4096.sqlite[2/6] [================69%         ] nsys_pascal_warptile_4096.sqlite[2/6] [================70%         ] nsys_pascal_warptile_4096.sqlite[2/6] [================71%         ] nsys_pascal_warptile_4096.sqlite[2/6] [=================72%        ] nsys_pascal_warptile_4096.sqlite[2/6] [=================73%        ] nsys_pascal_warptile_4096.sqlite[2/6] [=================74%        ] nsys_pascal_warptile_4096.sqlite[2/6] [==================75%       ] nsys_pascal_warptile_4096.sqlite[2/6] [==================76%       ] nsys_pascal_warptile_4096.sqlite[2/6] [==================77%       ] nsys_pascal_warptile_4096.sqlite[2/6] [==================78%       ] nsys_pascal_warptile_4096.sqlite[2/6] [===================79%      ] nsys_pascal_warptile_4096.sqlite[2/6] [===================80%      ] nsys_pascal_warptile_4096.sqlite[2/6] [===================81%      ] nsys_pascal_warptile_4096.sqlite[2/6] [===================82%      ] nsys_pascal_warptile_4096.sqlite[2/6] [====================83%     ] nsys_pascal_warptile_4096.sqlite[2/6] [====================84%     ] nsys_pascal_warptile_4096.sqlite[2/6] [====================85%     ] nsys_pascal_warptile_4096.sqlite[2/6] [=====================86%    ] nsys_pascal_warptile_4096.sqlite[2/6] [=====================87%    ] nsys_pascal_warptile_4096.sqlite[2/6] [=====================88%    ] nsys_pascal_warptile_4096.sqlite[2/6] [=====================89%    ] nsys_pascal_warptile_4096.sqlite[2/6] [======================90%   ] nsys_pascal_warptile_4096.sqlite[2/6] [======================91%   ] nsys_pascal_warptile_4096.sqlite[2/6] [======================92%   ] nsys_pascal_warptile_4096.sqlite[2/6] [=======================93%  ] nsys_pascal_warptile_4096.sqlite[2/6] [=======================94%  ] nsys_pascal_warptile_4096.sqlite[2/6] [=======================95%  ] nsys_pascal_warptile_4096.sqlite[2/6] [=======================96%  ] nsys_pascal_warptile_4096.sqlite[2/6] [========================97% ] nsys_pascal_warptile_4096.sqlite[2/6] [========================98% ] nsys_pascal_warptile_4096.sqlite[2/6] [========================99% ] nsys_pascal_warptile_4096.sqlite[2/6] [========================100%] nsys_pascal_warptile_4096.sqlite[2/6] [========================100%] nsys_pascal_warptile_4096.sqlite
+[3/6] Executing 'cuda_api_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls    Avg (ns)      Med (ns)     Min (ns)    Max (ns)    StdDev (ns)                 Name               
+ --------  ---------------  ---------  ------------  ------------  ----------  -----------  ------------  ---------------------------------
+     60.3      562,759,366         20  28,137,968.3  27,511,710.0  26,006,210   33,219,147   2,050,198.6  cudaEventSynchronize             
+     19.7      184,115,606         11  16,737,782.4      86,373.0       2,214  178,616,811  53,694,602.1  cudaFree                         
+     17.8      166,252,750          7  23,750,392.9       3,836.0         859  166,136,305  62,786,295.2  cudaDeviceSynchronize            
+      1.6       14,753,668          6   2,458,944.7      75,854.0      43,050    7,340,771   3,717,388.3  cudaMemcpy                       
+      0.3        2,796,191         27     103,562.6       4,284.0       3,142    2,540,332     487,556.1  cudaLaunchKernel                 
+      0.1          777,691         40      19,442.3       3,535.0       3,055      614,474      96,538.6  cudaEventRecord                  
+      0.1          546,944         10      54,694.4      47,934.5       2,278      145,599      54,015.0  cudaMalloc                       
+      0.0          198,671         24       8,278.0       6,561.5       4,901       33,729       5,929.6  cudaMemset                       
+      0.0          158,105        838         188.7         140.0          79        1,008         115.1  cuGetProcAddress_v2              
+      0.0           96,530          1      96,530.0      96,530.0      96,530       96,530           0.0  cudaGetDeviceProperties_v2_v12000
+      0.0           40,015          1      40,015.0      40,015.0      40,015       40,015           0.0  cudaMemGetInfo                   
+      0.0           14,905         18         828.1         371.0         348        3,280         975.5  cudaEventCreateWithFlags         
+      0.0            9,405         20         470.3         389.5         249        1,338         259.2  cudaEventDestroy                 
+      0.0            7,850          4       1,962.5       1,804.5       1,357        2,884         656.5  cuInit                           
+      0.0            6,194          2       3,097.0       3,097.0         520        5,674       3,644.4  cudaEventCreate                  
+      0.0            1,121          3         373.7         159.0         118          844         407.8  cuModuleGetLoadingMode           
+      0.0              882          2         441.0         441.0         227          655         302.6  cudaGetDriverEntryPoint_v11030   
+
+[4/6] Executing 'cuda_gpu_kern_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances    Avg (ns)      Med (ns)    Min (ns)   Max (ns)   StdDev (ns)                                         Name                                       
+ --------  ---------------  ---------  ------------  ------------  --------  ----------  -----------  ----------------------------------------------------------------------------------
+    100.0      724,481,712         26  27,864,681.2  27,355,629.5    95,684  33,241,222  6,320,662.6  sgemm_warptile(int, int, int, float, const float *, const float *, float, float *)
+      0.0           12,256          1      12,256.0      12,256.0    12,256      12,256          0.0  sgemm_32x32x32_NN_vec                                                             
+
+[5/6] Executing 'cuda_gpu_mem_time_sum' stats report
+
+ Time (%)  Total Time (ns)  Count   Avg (ns)     Med (ns)    Min (ns)  Max (ns)   StdDev (ns)           Operation          
+ --------  ---------------  -----  -----------  -----------  --------  ---------  -----------  ----------------------------
+     79.3       14,377,424      4  3,594,356.0  3,547,346.5    23,136  7,259,595  4,124,276.0  [CUDA memcpy Host-to-Device]
+     20.4        3,699,497     24    154,145.7    167,798.0     1,824    169,926     46,913.7  [CUDA memset]               
+      0.2           44,193      2     22,096.5     22,096.5    21,856     22,337        340.1  [CUDA memcpy Device-to-Host]
+
+[6/6] Executing 'cuda_gpu_mem_size_sum' stats report
+
+ Total (MB)  Count  Avg (MB)  Med (MB)  Min (MB)  Max (MB)  StdDev (MB)           Operation          
+ ----------  -----  --------  --------  --------  --------  -----------  ----------------------------
+  1,476.919     24    61.538    67.109     0.262    67.109       18.873  [CUDA memset]               
+    134.742      4    33.686    33.686     0.262    67.109       38.594  [CUDA memcpy Host-to-Device]
+      0.524      2     0.262     0.262     0.262     0.262        0.000  [CUDA memcpy Device-to-Host]
+
+Generated:
+	/scratch/ashish123/cuda_gemm_pascal_2689249/nsys_pascal_warptile_4096.nsys-rep
+	/scratch/ashish123/cuda_gemm_pascal_2689249/nsys_pascal_warptile_4096.sqlite

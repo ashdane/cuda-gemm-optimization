@@ -1,0 +1,41 @@
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z11sgemm_naiveiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z11sgemm_naiveiiifPKfS0_fPf
+ptxas info    : Used 32 registers, used 0 barriers, 368 bytes cmem[0]
+ptxas info    : Compile time = 8.761 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z15sgemm_coalescediiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z15sgemm_coalescediiifPKfS0_fPf
+ptxas info    : Used 32 registers, used 0 barriers, 368 bytes cmem[0]
+ptxas info    : Compile time = 8.703 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z10sgemm_smemiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z10sgemm_smemiiifPKfS0_fPf
+ptxas info    : Used 30 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 6.918 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18sgemm_1d_blocktileiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z18sgemm_1d_blocktileiiifPKfS0_fPf
+ptxas info    : Used 48 registers, used 1 barriers, 4096 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 11.341 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18sgemm_2d_blocktileiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z18sgemm_2d_blocktileiiifPKfS0_fPf
+ptxas info    : Used 96 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0], 8 bytes cmem[2]
+ptxas info    : Compile time = 48.181 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z16sgemm_vectorizediiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z16sgemm_vectorizediiifPKfS0_fPf
+ptxas info    : Used 92 registers, used 1 barriers, 16384 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 37.606 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z14sgemm_warptileiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z14sgemm_warptileiiifPKfS0_fPf
+ptxas info    : Used 64 registers, used 1 barriers, 16384 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 29.577 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z23sgemm_double_buf_pascaliiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z23sgemm_double_buf_pascaliiifPKfS0_fPf
+ptxas info    : Used 112 registers, used 1 barriers, 64 bytes cumulative stack size, 32768 bytes smem, 368 bytes cmem[0], 8 bytes cmem[2]
+ptxas info    : Compile time = 83.444 ms

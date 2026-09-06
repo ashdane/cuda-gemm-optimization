@@ -1,0 +1,7 @@
+arch,kernel_name,threads_per_block,registers_per_thread,smem_bytes,blocks_per_sm,occupancy_pct,limiting_factor,warps_per_sm,max_warps_sm
+sm_75,_Z10sgemm_smemiiifPKfS0_fPf,1024,42,8192,1,100.0,registers,32,32
+sm_75,_Z18sgemm_1d_blocktileiiifPKfS0_fPf,512,66,4096,1,50.0,registers,16,32
+sm_75,_Z18sgemm_2d_blocktileiiifPKfS0_fPf,256,94,8192,2,50.0,registers,16,32
+sm_75,_Z16sgemm_vectorizediiifPKfS0_fPf,256,93,16384,2,50.0,registers,16,32
+sm_75,_Z14sgemm_warptileiiifPKfS0_fPf,256,62,16384,4,100.0,registers,32,32
+sm_75,_Z23sgemm_double_buf_pascaliiifPKfS0_fPf,256,96,32768,2,50.0,registers,16,32

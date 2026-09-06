@@ -1,0 +1,131 @@
+
+=== Building Pascal (sm_61) — kernels 0..7 + cuBLAS FP32 ===
+nvcc -O3 -std=c++14 --ptxas-options=-v -lineinfo -Xcompiler "-Wall -Wextra" -I../kernels -arch=sm_61 -lcublas -lcuda \
+	-o bench_runner_sm61 \
+	bench_runner.cu ../kernels/00_naive.cu ../kernels/01_coalesced.cu ../kernels/02_smem_tiling.cu ../kernels/03_1d_blocktile.cu ../kernels/04_2d_blocktile.cu ../kernels/05_vectorized.cu ../kernels/06_warptiling.cu ../kernels/07_double_buffering.cu \
+	2>&1 | tee ptxas_sm61.log
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+ptxas info    : 0 bytes gmem
+bench_runner.cu: In function ‘void launch_sgemm_tensor_core(int, int, int, float, const float*, const float*, float, float*)’:
+bench_runner.cu:53:55: warning: unused parameter ‘M’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                   ~~~~^
+bench_runner.cu:53:62: warning: unused parameter ‘N’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                          ~~~~^
+bench_runner.cu:53:69: warning: unused parameter ‘K’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                 ~~~~^
+bench_runner.cu:53:78: warning: unused parameter ‘a’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                        ~~~~~~^
+bench_runner.cu:53:94: warning: unused parameter ‘dA’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                 ~~~~~~~~~~~~~^~
+bench_runner.cu:53:111: warning: unused parameter ‘dB’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                                  ~~~~~~~~~~~~~^~
+bench_runner.cu:53:121: warning: unused parameter ‘b’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                                                   ~~~~~~^
+bench_runner.cu:53:131: warning: unused parameter ‘dC’ [-Wunused-parameter]
+   53 | __attribute__((weak)) void launch_sgemm_tensor_core  (int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                                                            ~~~~~~~^~
+bench_runner.cu: In function ‘void launch_cublas_fp16_tc(cublasHandle_t, int, int, int, float, const float*, const float*, float, float*)’:
+bench_runner.cu:54:63: warning: unused parameter ‘h’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                ~~~~~~~~~~~~~~~^
+bench_runner.cu:54:70: warning: unused parameter ‘M’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                  ~~~~^
+bench_runner.cu:54:77: warning: unused parameter ‘N’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                         ~~~~^
+bench_runner.cu:54:84: warning: unused parameter ‘K’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                ~~~~^
+bench_runner.cu:54:93: warning: unused parameter ‘a’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                       ~~~~~~^
+bench_runner.cu:54:109: warning: unused parameter ‘dA’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                                ~~~~~~~~~~~~~^~
+bench_runner.cu:54:126: warning: unused parameter ‘dB’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                                                 ~~~~~~~~~~~~~^~
+bench_runner.cu:54:136: warning: unused parameter ‘b’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                                                                  ~~~~~~^
+bench_runner.cu:54:146: warning: unused parameter ‘dC’ [-Wunused-parameter]
+   54 | __attribute__((weak)) void launch_cublas_fp16_tc     (cublasHandle_t h, int M, int N, int K, float a, const float* dA, const float* dB, float b, float* dC) {}
+      |                                                                                                                                           ~~~~~~~^~
+bench_runner.cu: In function ‘float validateKernel(KernelFn, int, int, int, float, float, const float*, const float*)’:
+bench_runner.cu:152:1: warning: unused parameter ‘dA’ [-Wunused-parameter]
+  151 |                               float alpha, float beta,
+      |                               ~~~~~~~~~~~~~~~~~~~~~~~~
+  152 |                               const float* dA, const float* dB) {
+      | ^ 
+bench_runner.cu:152:18: warning: unused parameter ‘dB’ [-Wunused-parameter]
+  152 |                               const float* dA, const float* dB) {
+      |                  ^ 
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z11sgemm_naiveiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z11sgemm_naiveiiifPKfS0_fPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 32 registers, used 0 barriers, 368 bytes cmem[0]
+ptxas info    : Compile time = 8.761 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z15sgemm_coalescediiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z15sgemm_coalescediiifPKfS0_fPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 32 registers, used 0 barriers, 368 bytes cmem[0]
+ptxas info    : Compile time = 8.703 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z10sgemm_smemiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z10sgemm_smemiiifPKfS0_fPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 30 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 6.918 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18sgemm_1d_blocktileiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z18sgemm_1d_blocktileiiifPKfS0_fPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 48 registers, used 1 barriers, 4096 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 11.341 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z18sgemm_2d_blocktileiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z18sgemm_2d_blocktileiiifPKfS0_fPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 96 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0], 8 bytes cmem[2]
+ptxas info    : Compile time = 48.181 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z16sgemm_vectorizediiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z16sgemm_vectorizediiifPKfS0_fPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 92 registers, used 1 barriers, 16384 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 37.606 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z14sgemm_warptileiiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z14sgemm_warptileiiifPKfS0_fPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 1 barriers, 16384 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 29.577 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z23sgemm_double_buf_pascaliiifPKfS0_fPf' for 'sm_61'
+ptxas info    : Function properties for _Z23sgemm_double_buf_pascaliiifPKfS0_fPf
+    64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 112 registers, used 1 barriers, 64 bytes cumulative stack size, 32768 bytes smem, 368 bytes cmem[0], 8 bytes cmem[2]
+ptxas info    : Compile time = 83.444 ms
+Binary: bench_runner_sm61
+ptxas log: ptxas_sm61.log
+
+--- ptxas resource usage (sm_61) ---
+  _Z11sgemm_naiveiiifPKfS0_fPf                  ptxas info    : Used 32 registers, used 0 barriers, 368 bytes cmem[0]
+  _Z15sgemm_coalescediiifPKfS0_fPf              ptxas info    : Used 32 registers, used 0 barriers, 368 bytes cmem[0]
+  _Z10sgemm_smemiiifPKfS0_fPf                   ptxas info    : Used 30 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0]
+  _Z18sgemm_1d_blocktileiiifPKfS0_fPf           ptxas info    : Used 48 registers, used 1 barriers, 4096 bytes smem, 368 bytes cmem[0]
+  _Z18sgemm_2d_blocktileiiifPKfS0_fPf           ptxas info    : Used 96 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0], 8 bytes cmem[2]
+  _Z16sgemm_vectorizediiifPKfS0_fPf             ptxas info    : Used 92 registers, used 1 barriers, 16384 bytes smem, 368 bytes cmem[0]
+  _Z14sgemm_warptileiiifPKfS0_fPf               ptxas info    : Used 64 registers, used 1 barriers, 16384 bytes smem, 368 bytes cmem[0]
+  _Z23sgemm_double_buf_pascaliiifPKfS0_fPf      ptxas info    : Used 112 registers, used 1 barriers, 64 bytes cumulative stack size, 32768 bytes smem, 368 bytes cmem[0], 8 bytes cmem[2]
+-----------------------------------------------
