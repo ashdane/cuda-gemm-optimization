@@ -362,16 +362,6 @@ Strassen's sub-cubic algorithm reduces arithmetic complexity from $\mathcal{O}(N
     \item \textbf{Numerical Stability:} Strassen's algorithm exhibits looser numerical error bounds compared to standard accumulator dot products, which can cause precision issues in single precision.
 \end{itemize}
 
-\subsection{Split-K Decomposition for Tall/Skinny GEMM (Theoretical Analysis)}
-When $M$ and $N$ are small but $K$ is very large (common in attention projections and batch-1 autoregressive inference), standard 2D grid tiling $(M/BM, N/BN)$ yields too few threadblocks to saturate GPU SMs. For example, on a $128 \times 128 \times 65{,}536$ problem with standard $128 \times 128$ block tiles, the launch grid is $(1, 1)$, creating \textbf{exactly 1 threadblock} and leaving 67 out of 68 SMs completely idle on Turing.
-
-While I did not implement a custom Split-K kernel for this report, the theoretical motivation for Split-K is clear from our occupancy analysis:
-\begin{itemize}
-    \item \textbf{Under-subscription penalty:} Standard 2D block tiling limits concurrency to the $M$ and $N$ dimensions. When computing a single $128 \times 128$ output tile, the entire 65,536-element reduction loop is serialized within a single threadblock, stranding the vast majority of the GPU's arithmetic pipelines.
-    \item \textbf{Split-K scaling:} A Split-K algorithm addresses this by dividing the $K$ dimension into $S$ equal slices (e.g., $S=64$). Each slice is computed independently by a separate threadblock, outputting partial results to a temporary global workspace. A final lightweight reduction pass then accumulates these partials.
-    \item \textbf{Wave quantization tradeoff:} By launching $1 \times 64 = 64$ active threadblocks instead of 1, Split-K allows the GPU to achieve near-perfect wave saturation across the 68 SMs on Turing. While the secondary reduction phase introduces a modest global memory-write overhead, the massive increase in thread-level concurrency theoretically enables throughput to scale almost linearly with $S$ (up to the SM count) compared to the severe bottleneck of a single active SM.
-\end{itemize}
-
 \subsection{Mixed-Precision and Quantized GEMM (INT8 / DP4A)}
 For inference workloads, full FP32 precision is frequently unnecessary. Quantized INT8 arithmetic provides substantial throughput multipliers:
 \begin{itemize}
