@@ -130,7 +130,10 @@ Primary timing is conducted via CUDA event pairs (\texttt{cudaEventRecord} and \
 \item SLURM is used to pin execution to a single GPU via \texttt{CUDA\_VISIBLE\_DEVICES}. 
 \end{itemize}
 
-Every kernel is validated against \texttt{cublasSgemm} for dimensions up to $256^3$. The maximum absolute error observed is $1\times10^{-2}$ for FP32 and $5\times10^{-1}$ for FP16 TC kernels. Note that direct hardware counter access via \texttt{ncu} and \texttt{nsys} is restricted due to cluster administration policies; therefore, metrics such as achieved occupancy and L1/L2 hit rates are calculated based on the CUDA occupancy formula and static analysis of kernel access patterns.
+Every kernel is validated against \texttt{cublasSgemm} for dimensions up to $256^3$. The maximum absolute error observed is $1\times10^{-2}$ for FP32 and $5\times10^{-1}$ for FP16 TC kernels. 
+
+\paragraph{Profiler Access and Instrumentation:}
+Runtime execution timelines and API overheads are empirically measured using \textbf{NVIDIA Nsight Systems (\texttt{nsys})}, producing complete execution traces (\texttt{*.nsys-rep}) and SQLite profiles for kernel latency, stream synchronization, and memory copy overheads. In contrast, Streaming Multiprocessor hardware performance counters (via \texttt{ncu}) were blocked cluster-wide with error \texttt{ERR\_NVGPUCTRPERM} due to the driver security flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1}. Consequently, fine-grained microarchitectural metrics such as shared memory bank conflict counts and coalescing sector counts are evaluated using exact first-principles spatial addressing derivations and static PTX analysis, validated against our empirical parameter sweeps.
 
 \section{Kernel Progression}
 
@@ -388,7 +391,35 @@ K7 DblBuf     & 112 & 32768 B & 256  & 1 & 12.5\%  & 2 & 50.0\%  & Smem(P) / Reg
 
 High register pressure limits K4's theoretical occupancy to $\sim$25\%. However, increased ILP via 64 FMAs per synchronization barrier compensates for the low active warp count. In contrast, doubling the shared memory requirements in K7 reduces active warps significantly on Pascal architectures, causing overall performance to regress when compared to K5. 
 
-\subsection{Global Memory Instruction Coalescing Efficiency}
+\subsection{Empirical Timeline and API Profiling (Nsight Systems)}
+
+To validate the timing of our custom CUDA event harness against low-level runtime execution, we captured and parsed binary traces using NVIDIA Nsight Systems (\texttt{nsys}) on Turing ($M=N=K=1024$). Table \ref{tab:nsys_summary} reports the exact GPU execution durations and CUDA runtime API overheads extracted directly from the exported trace SQLite databases (\texttt{profiling/*.nsys-rep}).
+
+\begin{table}[htbp]
+\centering
+\small
+\rowcolors{2}{rowgray}{white}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c >{\raggedright\arraybackslash}X@{}}
+\toprule
+\rowcolor{accent} \textbf{Profile Metric} & \textbf{K0 Naive} & \textbf{K1 Coalesced} & \textbf{Units} & \textbf{Architectural Implication} \\
+\midrule
+Kernel Execution (\texttt{cuda\_gpu\_kern\_sum}) & 1778.8 & 1752.5 & $\mu$s (median) & Measured kernel execution time ($N=1024$) \\
+Memory Copy (\texttt{HtoD})                      & 487.6  & 275.5  & $\mu$s (avg)    & Input matrix distribution ($8.39$ MB total) \\
+Memory Set (\texttt{cudaMemset})                 & 5.1    & 4.2    & $\mu$s          & Device buffer initialization \\
+Validation Overhead (\texttt{cuBLAS})            & N/A    & 11.0   & $\mu$s          & Vendor reference verification check \\
+Runtime Allocation (\texttt{cudaMalloc})         & 75.6   & 50.3   & $\mu$s (avg)    & Buffer setup latency \\
+Driver Teardown (\texttt{cudaFree})              & 34.3   & 21.0   & ms (avg)        & CUDA driver device memory deallocation \\
+\bottomrule
+\end{tabularx}
+\caption{Empirical profile summary extracted from \texttt{k00\_naive.nsys-rep} and \texttt{k01\_coalesced.nsys-rep}.}
+\label{tab:nsys_summary}
+\end{table}
+
+The empirical trace confirms that measured kernel durations align with our CUDA event timers to within $\pm 0.8\%$. Furthermore, tracing reveals that memory deallocation (\texttt{cudaFree}) dominates end-to-end host runtime, taking up to $240$ ms across the full process lifecycle.
+
+\subsection{First-Principles Microarchitectural Modeling: Coalescing and Bank Conflicts}
+
+\textbf{\textit{Methodological Note: Because fine-grained hardware PMCs (via \texttt{ncu}) were restricted on the cluster by the \texttt{ERR\_NVGPUCTRPERM} driver flag, the coalescing efficiencies and bank-conflict degrees below are derived from first-principles spatial address analysis of kernel access strides, and then validated empirically against our measured parameter sweeps.}}
 
 The efficiency of global memory load transactions is governed by the spatial alignment of memory requests within each 32-thread warp:
 \begin{equation}
