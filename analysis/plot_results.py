@@ -1,25 +1,4 @@
 #!/usr/bin/env python3
-"""
-plot_results.py — Generate all required plots for the CUDA GEMM study.
-
-Reads CSV files produced by run_sweep.sh and param_sensitivity.sh.
-Generates:
-  1. GFLOPS vs kernel version (bar chart) per architecture
-  2. GFLOPS vs matrix size (line plot) 
-  3. Roofline plot per architecture
-  4. Parameter sensitivity cliff plot
-  5. Multi-architecture normalized comparison
-
-Usage:
-  python3 plot_results.py --results-dir /home2/$USER/cuda_gemm/results
-                          --output-dir  /home2/$USER/cuda_gemm/plots
-
-Hardware spec constants (cited in report):
-  GTX 1080 Ti: 11.34 TFLOPS FP32, 484.4 GB/s DRAM BW
-    Source: https://www.nvidia.com/en-us/geforce/products/10series/geforce-gtx-1080-ti/
-  RTX 2080 Ti: 13.45 TFLOPS FP32, 616.0 GB/s DRAM BW
-    Source: https://www.nvidia.com/en-us/geforce/graphics-cards/rtx-2080-ti/
-"""
 
 import argparse
 import os

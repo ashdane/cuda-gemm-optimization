@@ -1,33 +1,4 @@
 #!/usr/bin/env python3
-"""
-occupancy_calc.py — Parse ptxas --ptxas-options=-v output and compute
-theoretical occupancy for sm_61 (Pascal GTX 1080 Ti) and sm_75 (Turing RTX 2080 Ti).
-
-This is our ONLY source of occupancy data since ncu hardware counters are blocked
-(ERR_NVGPUCTRPERM) on the Ada HPC cluster. Results are CALCULATED, not measured.
-
-Usage:
-  python3 occupancy_calc.py --ptxas-log ptxas_sm61.log --arch sm_61
-  python3 occupancy_calc.py --ptxas-log ptxas_sm75.log --arch sm_75
-  python3 occupancy_calc.py --ptxas-log ptxas_sm61.log --arch sm_61 --csv occupancy_sm61.csv
-
-Output: CSV with columns:
-  kernel_name, arch, threads_per_block, registers_per_thread, smem_bytes,
-  blocks_per_sm_reg_limited, blocks_per_sm_smem_limited, blocks_per_sm_thread_limited,
-  blocks_per_sm_achieved, warps_per_sm, max_warps_sm, occupancy_pct, limiting_factor
-
-GPU Hardware Limits (from CUDA Programming Guide + spec sheets):
-  sm_61 (Pascal GTX 1080 Ti):
-    - 28 SMs, 2048 threads/SM, 64 warps/SM, 32 blocks/SM
-    - 65536 registers/SM, max 255 regs/thread
-    - 49152 bytes shared memory/SM (48 KB, fixed)
-    - 1024 max threads/block
-  sm_75 (Turing RTX 2080 Ti):
-    - 68 SMs, 1024 threads/SM, 32 warps/SM, 16 blocks/SM
-    - 65536 registers/SM, max 255 regs/thread
-    - 65536 bytes shared memory/SM (64 KB configurable, up to 96KB with setMaxDynSmem)
-    - 1024 max threads/block
-"""
 
 import re
 import argparse

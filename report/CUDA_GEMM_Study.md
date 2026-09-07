@@ -440,11 +440,12 @@ pipeline stalls, warp divergence), not memory bandwidth.
 > from NVIDIA spec sheets. All points at the same AI (682 FLOP/byte for 4096³)
 > — vertical spread shows efficiency differences.*
 
-### 6.4 Empirical Hardware Counter Verification (Nsight Compute)
+### 6.4 Empirical Hardware Counter Verification (Nsight Compute) [T4-VERIFIED, Turing-class sm_75 only]
 
 > **Platform**: NVIDIA Tesla T4 (Turing, sm_75, Compute Capability 7.5, driver with root access).
 > **Profiler**: NVIDIA Nsight Compute (`ncu`) command-line profiler.
 > **Workload**: $M=N=K=1024$, 3 profiling passes per kernel.
+> **Scope Note**: These physical performance counters empirically validate the **Turing (`sm_75`)** branch of our microarchitectural model. Pascal (`sm_61`) has a fundamentally different unified datapath (no concurrent INT/FP dual-issue) and fixed 48 KB shared memory layout, and remains modeled analytically via first-principles spatial stride analysis (§6.2) rather than physical counter measurement.
 > **Artifacts**: Stored directly in `colab_profiling/` (`k00_naive.ncu-rep`, `k01_coalesced.ncu-rep`, `k02_smem.ncu-rep`, `k04_2d_tile.ncu-rep`).
 
 | Hardware Metric | Metric Unit | K0 Naive | K1 Coalesced | K2 Smem Tiling | K4 2D Blocktile | cuBLAS Reference |
@@ -485,9 +486,9 @@ pipeline stalls, warp divergence), not memory bandwidth.
 
 ### 7.2 Performance Cliff Mechanism
 
-The most dramatic cliff occurs when using non-square or awkward dimensions (like 3001x3001x3001 or 4097x4097x4097). The custom kernels (like K5 Vectorized and K7 Double Buffering) fail completely and do not return data, while cuBLAS handles them gracefully.
+The most dramatic cliff occurs when using non-square or awkward dimensions (like 3001x3001x3001 or 511x513x511). The manual vectorized kernels (K5 Vectorized and K7 Double Buffering) fail with an execution fault, while cuBLAS handles them gracefully.
 
-**Mechanism**: The hand-tuned kernels are hardcoded to assume that the M, N, and K dimensions are exact multiples of the block tile sizes (e.g., 128). They do not perform boundary checking inside the innermost loops to avoid branching divergence. As a result, when given an unpadded matrix of size 3001, the kernel accesses out-of-bounds memory and segfaults. cuBLAS handles this by either internally padding the matrices to the nearest multiple, or using specialized edge-case clean-up kernels.
+**Mechanism**: This failure is caused by **memory address alignment violations**, not missing boundary checks. Both K5 and K7 include boundary predicates and zero-padding logic for boundary tiles. However, they perform global memory coalesced transfers by casting float pointers to vector types (`reinterpret_cast<const float4*>`), which requires strict 16-byte address alignment. In row-major layouts, row pointers advance by $K \times 4$ bytes. When $K$ is not a multiple of 4 (such as $K=3001$, where $3001 \times 4 = 12004 \equiv 4 \pmod{16}$), row offsets cycle between 4, 8, and 12 bytes relative to 16-byte boundaries. Executing vector load instructions on these misaligned pointers triggers an illegal memory access trap (`cudaErrorIllegalAddress`). In contrast, cuBLAS transparently handles unaligned strides and arbitrary matrix dimensions.
 
 > ![Fig 4: Parameter sensitivity](../plots/fig4_param_sensitivity.png)
 > *Figure 4: GFLOPS and theoretical occupancy vs. tile parameters.

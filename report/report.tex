@@ -1,545 +1,403 @@
-\documentclass[10pt]{article}
+\documentclass[11pt]{article}
 
-\usepackage[margin=0.75in,top=0.9in,bottom=0.9in]{geometry}
-\usepackage[T1]{fontenc}
-\usepackage{booktabs}
-\usepackage{tabularx}
-\usepackage{array}
+\usepackage[margin=1in]{geometry}
 \usepackage{amsmath}
 \usepackage{graphicx}
-\usepackage{xcolor}
 \usepackage{hyperref}
-\usepackage{fancyhdr}
-\usepackage{enumitem}
-\usepackage{titlesec}
-\usepackage{caption}
-\usepackage{siunitx}
-\usepackage{colortbl}
+\graphicspath{{../plots/}{plots/}{./}}
 
-\setlist{itemsep=1pt, topsep=2pt, parsep=0pt}
-
-\definecolor{accent}{HTML}{1B4F72}
-\definecolor{accentlight}{HTML}{D6EAF8}
-\definecolor{pascalcolor}{HTML}{7B241C}
-\definecolor{turingcolor}{HTML}{1B4F72}
-\definecolor{rowgray}{HTML}{F4F6F7}
-
-\hypersetup{
-  colorlinks=true,
-  linkcolor=accent,
-  urlcolor=accent,
-  citecolor=accent,
-  pdftitle={CUDA GEMM Kernel Optimization: An Empirical Architecture Study},
-  pdfauthor={Ada HPC Cluster Study}
-}
-
-\titleformat{\section}
-  {\normalfont\Large\bfseries\color{accent}}
-  {\thesection}{0.6em}{}[{\color{accent}\titlerule[1pt]}]
-\titleformat{\subsection}
-  {\normalfont\large\bfseries\color{accent!85!black}}
-  {\thesubsection}{0.5em}{}
-\titleformat{\subsubsection}
-  {\normalfont\normalsize\bfseries\color{accent!70!black}}
-  {\thesubsubsection}{0.5em}{}
-\titlespacing*{\section}{0pt}{0.6em}{0.35em}
-\titlespacing*{\subsection}{0pt}{0.45em}{0.2em}
-\titlespacing*{\subsubsection}{0pt}{0.35em}{0.15em}
-
-\renewcommand{\arraystretch}{1.0}
-\setlength{\textfloatsep}{6pt plus 2pt minus 2pt}
-\setlength{\intextsep}{6pt plus 2pt minus 2pt}
-\setlength{\abovecaptionskip}{3pt}
-\setlength{\belowcaptionskip}{2pt}
-
-\captionsetup{labelfont={color=accent,bf}, font=small, skip=4pt}
-
-\pagestyle{fancy}
-\fancyhf{}
-\renewcommand{\headrulewidth}{0.6pt}
-\renewcommand{\footrulewidth}{0.3pt}
-\fancyhead[L]{\small\color{accent!70!black}\textsc{CUDA GEMM Optimization Study}}
-\fancyhead[R]{\small\color{accent!70!black}Pascal $\times$ Turing}
-\fancyfoot[C]{\small\thepage}
-
-\newcommand{\ttsmall}[1]{{\small\texttt{#1}}}
-
-\title{\vspace{-2.2em}%
-{\color{accent}\rule{\textwidth}{1.2pt}}\\[0.6em]
-{\Huge\bfseries CUDA GEMM Kernel Optimization}\\[0.3em]
-{\Large An Empirical Architecture Study}\\[0.8em]
-{\color{accent}\rule{\textwidth}{1.2pt}}
-}
-\author{\textbf{Daniel Ashish Abraham} \quad (\texttt{2025121010})}
-\date{\large Ada HPC Cluster \;\textbullet\; Pascal (GTX 1080 Ti) $\times$ Turing (RTX 2080 Ti)}
+\title{PAA Assignment 1: CUDA GEMM Optimization}
+\author{Daniel Ashish Abraham (2025121010) \\
+\texttt{https://github.com/ashdane/cuda-gemm-optimization}}
+\date{}
 
 \begin{document}
 
-\begin{center}
-{\color{accent}\rule{\textwidth}{1.5pt}}\\[0.5em]
-{\Large\bfseries CUDA GEMM Kernel Optimization --- An Empirical Architecture Study}\\[0.3em]
-{\normalsize \textbf{Daniel Ashish Abraham} \quad (\texttt{2025121010})}\\[0.2em]
-{\small Ada HPC Cluster \;\textbullet\; \textcolor{pascalcolor}{\bfseries Pascal (GTX 1080 Ti)} $\times$ \textcolor{turingcolor}{\bfseries Turing (RTX 2080 Ti)}}\\[0.4em]
-{\color{accent}\rule{\textwidth}{1.5pt}}
-\end{center}
-\vspace{0.8em}
+\maketitle
 
-\section{Test Environment}
+\section{Setup}
 
-\subsection{Hardware}
+I ran tests on two nodes on the Ada cluster: a Pascal node with a GTX 1080 Ti and a Turing node with an RTX 2080 Ti.
 
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
-\toprule
-\rowcolor{accent} \textcolor{white}{\textbf{Property}} & \textcolor{white}{\textbf{Pascal Node}} & \textcolor{white}{\textbf{Turing Node}} \\
-\midrule
-GPU model & NVIDIA GeForce GTX 1080 Ti & NVIDIA GeForce RTX 2080 Ti \\
-Node range & gnode01--gnode40 & gnode43--gnode92 \\
-Architecture & Pascal (sm\_61) & Turing (sm\_75) \\
-SM count & 28 & 68 \\
-FP32 peak & 11.34 TFLOPS & 13.45 TFLOPS \\
-FP16 TC peak & None (no Tensor Cores) & 107.6 TFLOPS \footnotemark \\
-DRAM bandwidth & 484.4 GB/s & 616.0 GB/s \\
-Total GPU memory & 11 GB GDDR5X & 11 GB GDDR6 \\
-L1/L2 cache & 48 KB L1/SM (fixed), 2 MB L2 & 32--96 KB L1/SM (configurable), 5.5 MB L2 \\
-Shared mem/SM & 48 KB (fixed) & Up to 64 KB (configurable) \\
-Register file/SM & 256 KB (65536 $\times$ 32-bit) & 256 KB (65536 $\times$ 32-bit) \\
-Max threads/SM & 2048 & 1024 \\
-Max blocks/SM & 32 & 16 \\
-Tensor Cores & \textbf{None} & Yes (1st-gen FP16/INT8) \\
-DP4A (INT8 dot) & Yes & Yes \\
-PCIe generation & PCIe 3.0 $\times$16 & PCIe 3.0 $\times$16 \\
-CPU (host) & Dual Xeon E5-2640 v4 (2$\times$10 cores) & Dual Xeon E5-2640 v4 (2$\times$10 cores) \\
-Host RAM & 128 GB DDR4 & 128 GB DDR4 \\
-\bottomrule
-\end{tabularx}
-\caption{Hardware specifications for the two test nodes.}
-\end{table}
-\footnotetext{True architectural peak across all 544 Tensor Cores.}
-
-\subsection{Measurement Methodology}
-
-Primary timing is conducted via CUDA event pairs (\texttt{cudaEventRecord} and \texttt{cudaEventElapsedTime}) surrounding each kernel launch, capturing GPU execution time without PCIe transfer overhead. 
-
-\begin{itemize}[nosep, leftmargin=1.4em]
-\item 10 warmup runs (discarded) are executed before each timed sequence, followed by 100 timed runs per configuration.
-\item Median times are reported to remain robust against contention on shared nodes.
-\item SLURM is used to pin execution to a single GPU via \texttt{CUDA\_VISIBLE\_DEVICES}. 
-\end{itemize}
-
-Every kernel is validated against \texttt{cublasSgemm} for dimensions up to $256^3$. The maximum absolute error observed is $1\times10^{-2}$ for FP32 and $5\times10^{-1}$ for FP16 TC kernels. 
-
-\paragraph{Profiler Access and Instrumentation:}
-Runtime execution timelines and API overheads on the Ada cluster are empirically measured using \textbf{NVIDIA Nsight Systems (\texttt{nsys})}, producing complete execution traces (\texttt{profiling/*.nsys-rep}) and SQLite profiles for kernel latency, stream synchronization, and memory copy overheads. Because fine-grained hardware performance registers via \textbf{NVIDIA Nsight Compute (\texttt{ncu})} were blocked on the shared cluster by the non-root restriction flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1} (\texttt{ERR\_NVGPUCTRPERM}), we executed root-level Nsight Compute runs on a Turing-architecture NVIDIA Tesla T4 GPU (sm\_75) with binary reports saved in \texttt{colab\_profiling/*.ncu-rep}. This provides direct, physical counter evidence (exact L1 sector counts, L1 cache hit rates, shared memory bank conflict cycles, and warp active percentages) that strongly corroborates our theoretical access models on matching sm\_75 hardware.
-
-\section{Kernel Progression}
-
-The following sections detail the progression of kernel optimizations, their expected theoretical benefits, and actual measured performance.
-
-\begin{description}[style=nextline, leftmargin=0pt, itemsep=0.3em, parsep=0pt]
-\item[\color{accent}K0 --- Naive]
-One thread per output element. Each thread loops over K, reloading \texttt{A[row,k]} and \texttt{B[k,col]} from global memory every iteration. Zero data reuse leads to severe memory bandwidth bottlenecks.
-
-\item[\color{accent}K1 --- Coalesced]
-Fixes standard mapping issues to ensure the fast-varying thread dimension maps to the fast-varying column, improving memory coalescence.
-
-\item[\color{accent}K2 --- Shared Memory Tiling]
-Utilizes a $32{\times}32$ tile of A and B in shared memory, allowing each element to be reused 32 times. This increases arithmetic intensity and reduces bank conflicts.
-
-\item[\color{accent}K3 --- 1D Block Tiling]
-Increases instruction-level parallelism (ILP) by having each thread compute 8 rows (BM=64, BN=64, BK=8), yielding 8 FMAs per shared-memory load.
-
-\item[\color{accent}K4 --- 2D Block Tiling]
-Each thread computes $8{\times}8$ outputs (256 threads/block). This optimization trades theoretical occupancy for higher ILP.
-
-\item[\color{accent}K5 --- Vectorized]
-Utilizes \texttt{float4} loads to cut instruction counts for global to shared memory transfers, yielding better bandwidth utilization.
-
-\item[\color{accent}K6 --- Warp Tiling]
-Explicit warp-level decomposition where 8 warps per block each compute a $64{\times}32$ sub-region.
-
-\item[\color{accent}K7 --- Double Buffering]
-Implements software pipelining to prefetch the next tile while FMA units consume the current one, increasing latency hiding at the cost of shared memory footprint.
-
-\item[\color{accent}K8 --- Tensor Core WMMA (Turing sm\_75 only)]
-\label{sec:k8}
-Utilizes the WMMA API with \texttt{\_\_half} inputs and \texttt{float} accumulation on $16{\times}16{\times}16$ fragments. 
-
-\item[\color{accent}K9 / K10 --- cuBLAS]
-Provides the vendor-tuned ceilings for FP16 and FP32 respectively, establishing an upper performance bound.
-
-\end{description}
-
-\section{Results: Kernel Progression ($M=N=K=4096$)}
-
-\subsection{Pascal --- GTX 1080 Ti (sm\_61)}
-
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X S[table-format=5.1] c c c c@{}}
-\toprule
-\rowcolor{pascalcolor} \textcolor{white}{\textbf{Kernel}} & {\textcolor{white}{\textbf{GFLOPS}}} & \textcolor{white}{\textbf{p10--p90}} & \textcolor{white}{\textbf{\% Peak}} & \textcolor{white}{\textbf{Eff. BW}} & \textcolor{white}{\textbf{vs. K0}} \\
-\midrule
-naive             & 581.5  & 578.4--586.6   & 5.1\%  & 1.1  & 1.0$\times$ \\
-coalesced         & 575.3  & 572.9--578.5   & 5.1\%  & 1.1  & 1.0$\times$ \\
-smem tiling       & 1676.4 & 1654.0--1684.7 & 14.8\% & 3.3  & 2.9$\times$ \\
-1D blocktile      & 2886.7 & 2723.6--2888.1 & 25.5\% & 5.6  & 5.0$\times$ \\
-2D blocktile      & 3925.5 & 3506.7--3933.8 & 34.6\% & 7.7  & 6.8$\times$ \\
-vectorized        & 4971.3 & 4071.7--5029.5 & 43.8\% & 9.7  & 8.5$\times$ \\
-double buffering  & 4132.6 & 3625.8--4144.0 & 36.4\% & 8.1  & 7.1$\times$ \\
-\rowcolor{accentlight} cuBLAS SGEMM  & 8728.5 & 5081.1--9594.5 & 77.0\% & 17.1 & 15.0$\times$ \\
-\bottomrule
-\end{tabularx}
-\caption{Pascal kernel progression at $4096^3$. Peak $=$ 11{,}340 GFLOPS.}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Parameter} & \textbf{Pascal (gnode10)} & \textbf{Turing (gnode50)} \\
+\hline
+GPU & GTX 1080 Ti & RTX 2080 Ti \\
+Arch & sm\_61 & sm\_75 \\
+SMs & 28 & 68 \\
+Peak FP32 & 11.34 TFLOPS & 13.45 TFLOPS \\
+DRAM Bandwidth & 484.4 GB/s & 616.0 GB/s \\
+VRAM & 11 GB GDDR5X & 11 GB GDDR6 \\
+Shared Mem / SM & 48 KB & Up to 64 KB \\
+Registers / SM & 64K & 64K \\
+Tensor Cores & None & Yes \\
+Host CPU & 2x Xeon E5-2640 v4 & 2x Xeon E5-2640 v4 \\
+Host RAM & 128 GB & 128 GB \\
+\hline
+\end{tabular}
+\caption{Test environment hardware specs.}
 \end{table}
 
-The most significant performance improvement on Pascal occurred at K3 (1D block tiling), resulting in a $5.0\times$ speedup relative to K0 due to loop unrolling and increased instruction-level parallelism. The highly tuned cuBLAS implementation achieves 77.0\% of theoretical peak, highlighting the ongoing gap due to precise register blocking, alignment padding, and instruction scheduling absent in the manual kernel iterations.
+Kernel timing was done with \texttt{cudaEventRecord} around the launches so that PCIe copy time wasnt included. For each test, I threw away 10 warmup runs and took the median over 100 timed runs. I checked correctness against \texttt{cublasSgemm} up to $256^3$ with an error tolerance of 0.01.
 
-\subsection{Turing --- RTX 2080 Ti (sm\_75)}
+When I tried running \texttt{ncu} on Ada, it failed immediately with \texttt{ERR\_NVGPUCTRPERM} because normal user accounts cannot read GPU performance counters on the cluster. So on Ada I only used \texttt{nsys} for runtime timelines. To get hardware counter stats (bank conflicts, L1 hit rates, memory sectors), I took my code and profiled it on Google Colab on a Tesla T4, which is also Turing (sm\_75).
 
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c@{}}
-\toprule
-\rowcolor{turingcolor} \textcolor{white}{\textbf{Kernel}} & \textcolor{white}{\textbf{GFLOPS}} & \textcolor{white}{\textbf{p10--p90}} & \textcolor{white}{\textbf{\% Peak}} & \textcolor{white}{\textbf{vs.\ K0}} & \textcolor{white}{\textbf{vs.\ Pascal}} \\
-\midrule
-naive              & 1545.3  & 1541.0--1558.8   & 11.5\%             & 1.0$\times$  & 2.7$\times$ \\
-coalesced          & 1534.3  & 1523.7--1542.8   & 11.4\%             & 1.0$\times$  & 2.7$\times$ \\
-smem tiling        & 2115.5  & 2099.0--2130.6   & 15.7\%             & 1.4$\times$  & 1.3$\times$ \\
-1D blocktile       & 4356.7  & 4322.6--4389.7   & 32.4\%             & 2.8$\times$  & 1.5$\times$ \\
-2D blocktile       & 6557.1  & 6505.5--6602.1   & 48.8\%             & 4.2$\times$  & 1.7$\times$ \\
-vectorized         & 6856.2  & 6790.2--6902.7   & 51.0\%             & 4.4$\times$  & 1.4$\times$ \\
-warptile (K6)      & 3515.8  & 3485.1--3522.6   & 26.1\%             & 2.3$\times$  & Turing measured \\
-double buffering   & 5927.7  & 5854.7--5975.4   & 44.1\%             & 3.8$\times$  & 1.4$\times$ \\
-\rowcolor{accentlight} cuBLAS SGEMM & 12939.8 & 12815.3--13165.1 & 96.2\% & 8.4$\times$ & 1.5$\times$ \\
-tensor core WMMA   & 6779.5  & 6711.9--6795.8   & 6.3\% of TC peak   & 4.4$\times$  & Turing only \\
-\rowcolor{accentlight} cuBLAS FP16 TC & 34233.2 & 25259.1--34483.9 & 31.8\% of TC peak & 22.2$\times$ & Turing only \\
-\bottomrule
-\end{tabularx}
-\caption{Turing kernel progression at $4096^3$. Peak $=$ 13{,}450 GFLOPS.}
-\end{table}
+\section{Kernels}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{plots/kernel_progression.png}
-    \caption{Performance progression across manual kernel iterations, comparing Pascal and Turing architectures.}
-    \label{fig:kernel_progression}
-\end{figure}
-
-\section{Multi-Architecture Comparison}
-
-\subsection{Measured Performance Ratio (Turing/Pascal)}
-
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c c@{}}
-\toprule
-\rowcolor{accent} \textcolor{white}{\textbf{Kernel}} & \textcolor{white}{\textbf{Pascal}} & \textcolor{white}{\textbf{Turing}} & \textcolor{white}{\textbf{Ratio}} & \textcolor{white}{\textbf{\%Peak(P)}} & \textcolor{white}{\textbf{\%Peak(T)}} & \textcolor{white}{\textbf{$\Delta$eff.}} \\
-\midrule
-naive             & 581.5  & 1545.3  & 2.66 & 5.1\%  & 11.5\% & +6.4 pp \\
-smem tiling       & 1676.4 & 2115.5  & 1.26 & 14.8\% & 15.7\% & +0.9 pp \\
-2D blocktile      & 3925.5 & 6557.1  & 1.67 & 34.6\% & 48.8\% & +14.1 pp \\
-vectorized        & 4971.3 & 6856.2  & 1.38 & 43.8\% & 51.0\% & +7.1 pp \\
-double buffering  & 4132.6 & 5927.7  & 1.43 & 36.4\% & 44.1\% & +7.6 pp \\
-\rowcolor{accentlight} cuBLAS SGEMM & 8728.5 & 12939.8 & 1.48 & 77.0\% & 96.2\% & +19.2 pp \\
-\bottomrule
-\end{tabularx}
-\caption{Efficiency improvements between Pascal and Turing architectures.}
-\end{table}
-
-Performance scales more effectively on Turing across heavily interleaved instruction streams. Microarchitecturally, this divergence stems from the fundamental pipeline reorganization between Pascal and Turing (as documented in the NVIDIA Turing Architecture Whitepaper and Turing Tuning Guide):
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Pascal (sm\_61) Shared Datapaths}: The Pascal SM features unified execution datapaths where integer arithmetic and floating-point operations contend for the same dispatch ports. Address generation math (e.g., computing multi-dimensional matrix strides $row \cdot K + col$ and pointer offsets via \texttt{IMAD}/\texttt{LEA}) cannot issue concurrently with floating-point multiply-accumulate (\texttt{FFMA}) instructions. The warp scheduler must sequentially alternate between address calculation and arithmetic, stalling the FP32 pipeline.
-  \item \textbf{Turing (sm\_75) Independent Concurrent Pipelines}: In the Turing microarchitecture, each SM sub-core integrates dedicated, independent INT32 and FP32 execution datapaths. Turing can dual-issue and execute an integer address instruction and a floating-point \texttt{FFMA} in the exact same clock cycle. In deeply unrolled GEMM kernels (K4--K7), static inspection of compiled PTX and SASS confirms that inner accumulation loops generate concurrent pairs of \texttt{LEA}/\texttt{IADD3} pointer calculations alongside \texttt{FFMA} instructions. Because integer index increments execute concurrently on the INT datapath rather than interleaving on the FP pipe, pipeline stalls are eliminated, yielding the observed empirical 1.4--1.7$\times$ efficiency gain over Pascal.
-\end{itemize} 
-
-\subsection{Optimal Tile Configuration}
-
-\begin{table}[htbp]
-\centering
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}l c c >{\raggedright\arraybackslash}X@{}}
-\toprule
-\rowcolor{accent} \textcolor{white}{\textbf{Parameter}} & \textcolor{white}{\textbf{Pascal}} & \textcolor{white}{\textbf{Turing}} & \textcolor{white}{\textbf{Rationale}} \\
-\midrule
-BM & 128 & 128 & Both favor large $128{\times}128$ output tiles \\
-BN & 128 & 128 & \\
-BK & 16  & 16  & Keeps smem to 16KB, avoiding occupancy cliffs on Pascal \\
-TM & 8   & 8   & $8{\times}8$ thread tile: 64 FMAs/thread, ILP/register balance \\
-TN & 8   & 8   & \\
-Threads/block & 256 & 256 & Manageable block count, 8 warps for latency hiding \\
-\bottomrule
-\end{tabularx}
-\caption{Optimal parameter configurations for the 2D block-tiled kernels.}
-\end{table}
-
-\subsection{Parameter Sensitivity Analysis}
-
-To systematically investigate microarchitectural performance cliffs, we executed an exhaustive empirical sweep across the block-tile ($BM, BN$), K-depth ($BK$), and thread-tile ($TM, TN$) hyperparameter grid on the Turing RTX 2080 Ti ($M=N=K=4096$, 50 iterations per point, recorded in \texttt{results/param\_sweep\_NVIDIA\_GeForce\_RTX\_2080\_Ti\_20260907\_153954.csv}).\footnote{In the automated sweep harness, compiling the complete benchmark binary emitted composite \texttt{ptxas} outputs across all defined entrypoints, where automated regex parsing captured the tail helper kernel (10 registers). For standalone static analysis in Table \ref{tab:occupancy}, K4 compiles to 96 registers on Pascal and 94 registers on Turing.}
-
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{The $TN$ Bank Conflict Cliff}: Across all tile configurations with $BK=16$, doubling thread tile width from $TN=4$ to $TN=8$ precipitates a sharp, non-linear performance collapse. For example:
-  \begin{itemize}
-    \item At $BM=64, BN=128, BK=16$: Configuration $TM=4, TN=4$ achieves \textbf{7560.0 GFLOPS} ($100\%$ occupancy). Shifting to $TM=4, TN=8$ plunges throughput to \textbf{4719.1 GFLOPS}---a \textbf{37.6\% performance collapse}.
-    \item At $BM=64, BN=64, BK=16$: Moving from $TN=4$ (7286.8 GFLOPS) to $TN=8$ (3607.0 GFLOPS) causes an immediate \textbf{50.5\% collapse}.
-  \end{itemize}
-  This empirical cliff directly validates our shared memory bank conflict derivation: 8-wide contiguous vector loads within 128-byte shared memory rows map adjacent threads $t$ and $t+4$ to identical memory banks ($8t \equiv 8(t+4) \pmod{32}$), halving effective shared memory load bandwidth through 2-way serialization replays.
-  \item \textbf{Optimal Empirical Operating Point}: Maximum sustained single-precision throughput is reached at $BM=128, BN=128, BK=32$ with $TM=8, TN=4$, attaining \textbf{8084.9 GFLOPS} ($60.1\%$ of peak) with 256 threads per block ($50\%$ occupancy). This configuration balances high instruction-level parallelism (64 FMAs per thread iteration) with conflict-free 4-wide register loads.
-  \item \textbf{Thread Granularity vs.\ Occupancy}: Interestingly, $100\%$ theoretical occupancy does not correlate with peak throughput. Configurations with $12.5\%$ occupancy ($BM=32, BN=32, TM=8, TN=4$) sustain 5601.2 GFLOPS by saturating arithmetic pipelines through high per-thread ILP, proving that GEMM kernels on modern architectures are bounded by instruction scheduling and bank contention rather than thread-level parallelism (TLP).
-\end{itemize}
-
-\section{Dimension Sweep Results}
-
-\subsection{Square Power-of-Two Sizes}
-
-\begin{table}[htbp]
-\centering
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c@{}}
-\toprule
-\rowcolor{accent} \textcolor{white}{\textbf{Size}} & \textcolor{white}{\textbf{K5}} & \textcolor{white}{\textbf{K6}} & \textcolor{white}{\textbf{K7}} & \textcolor{white}{\textbf{cuBLAS}} & \textcolor{white}{\textbf{K7/cuBLAS}} \\
-\midrule
-$256^3$  & 376.4  & 220.9  & 251.7  & 1846.1  & 13.6\% \\
-$512^3$  & 1589.2 & 911.8  & 1022.4 & 5698.8  & 17.9\% \\
-$1024^3$ & 4222.8 & 2212.8 & 3485.5 & 9118.1  & 38.2\% \\
-$2048^3$ & 6777.6 & 3373.0 & 6032.0 & 10539.8 & 57.2\% \\
-$4096^3$ & 6856.2 & 3515.8 & 5927.7 & 12939.8 & 45.8\% \\
-$8192^3$ & 7137.2 & 3592.6 & 5947.8 & 13651.4 & 43.6\% \\
-\bottomrule
-\end{tabularx}
-\caption{Square power-of-two dimension sweep (GFLOPS).}
-\end{table}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{plots/dimension_sweep.png}
-    \caption{Performance scaling curves across square matrix dimensions, comparing the K7 manual kernel against the cuBLAS reference on Turing.}
-    \label{fig:dimension_sweep}
-\end{figure}
-
-\subsection{Non-Square and Awkward Boundary Sizes}
-
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X l c c c@{}}
-\toprule
-\rowcolor{accent} \textbf{Shape (M$\times$N$\times$K)} & \textbf{Type} & \textbf{K7} & \textbf{cuBLAS} & \textbf{K7/cuBLAS} \\
-\midrule
-8192$\times$512$\times$512   & Tall-skinny    & 4226.1 & 9990.5  & 42.3\% \\
-512$\times$8192$\times$512   & Wide-flat      & 4249.9 & 9973.8  & 42.6\% \\
-512$\times$512$\times$8192   & Long-K         & 1388.8 & 9660.8  & 14.4\% \\
-2048$\times$512$\times$4096  & Asymmetric     & 3666.0 & 9770.3  & 37.5\% \\
-\bottomrule
-\end{tabularx}
-\caption{Non-square shape evaluation for K7 against cuBLAS.}
-\end{table}
-
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c >{\raggedright\arraybackslash}X@{}}
-\toprule
-\rowcolor{accent} \textbf{Shape} & \textbf{K7} & \textbf{cuBLAS} & \textbf{Ratio} & \textbf{Boundary Behavior} \\
-\midrule
-3000$\times$1500$\times$1500 & 5043.2 & 10095.7 & 50.0\% & Standard (padded blocks) \\
-3001$^3$ & N/A & 12502.9 & N/A & Fails: unpadded non-multiple \\
-1000$^3$ & 3233.6 & 8602.9 & 37.6\% & Standard (padded blocks) \\
-511$\times$513$\times$511 & N/A & 4437.9 & N/A & Fails: unpadded non-multiple \\
-\bottomrule
-\end{tabularx}
-\caption{Awkward-dimension execution success rates.}
-\end{table}
-
-The manual kernel implementations (e.g., K5, K7) assume strict dimensions corresponding to block multiples. Running an execution bound on an unpadded $3001^3$ matrix yields out-of-bounds accesses. Robust mathematical libraries like cuBLAS pad internal loop boundaries transparently, avoiding execution faults while incurring only a minimal performance penalty.
-
-\section{Hardware Profiling Analysis}
-
-\textbf{\textit{Methodological Structure: Because non-root access to hardware performance counter registers via \texttt{ncu} was restricted on the Ada cluster by the driver flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1} (\texttt{ERR\_NVGPUCTRPERM}), our profiling methodology combines three complementary tiers of evidence: (1) theoretical register pressure and occupancy bounds calculated via the CUDA Occupancy formula and static PTX analysis (§\ref{sec:occupancy}), (2) empirical execution timelines and CUDA API runtime overheads captured on the RTX 2080 Ti via NVIDIA Nsight Systems (\texttt{profiling/*.nsys-rep}, §\ref{sec:nsys}), and (3) physical hardware performance counter verification executed under root privileges on a Turing architecture GPU via NVIDIA Nsight Compute (\texttt{colab\_profiling/*.ncu-rep}, §\ref{sec:ncu}) alongside first-principles spatial stride modeling.}}
-
-\subsection{Register Pressure and Occupancy}
-\label{sec:occupancy}
-
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c c c >{\raggedright\arraybackslash}X@{}}
-\toprule
-\rowcolor{accent} \textbf{Kernel} & \textbf{Regs} & \textbf{Smem} & \textbf{Thr/blk} & \textbf{Blk(P)} & \textbf{Calc.\ Occ(P)} & \textbf{Blk(T)} & \textbf{Calc.\ Occ(T)} & \textbf{Limit} \\
-\midrule
-K0 Naive      & 32  & 0 B     & 1024 & 2 & 100.0\% & 1 & 100.0\% & Registers \\
-K2 Smem       & 30  & 8192 B  & 1024 & 2 & 100.0\% & 1 & 100.0\% & Registers \\
-K4 2D-tile    & 96  & 8192 B  & 256  & 2 & 25.0\%  & 2 & 50.0\%  & Registers \\
-K5 Vectorized & 92  & 16384 B & 256  & 2 & 25.0\%  & 2 & 50.0\%  & Registers \\
-K6 Warptile   & 64  & 16384 B & 256  & 3 & 37.5\%  & 4 & 100.0\% & Smem(P) / Regs(T) \\
-K7 DblBuf     & 112 & 32768 B & 256  & 1 & 12.5\%  & 2 & 50.0\%  & Smem(P) / Regs(T) \\
-\bottomrule
-\end{tabularx}
-\caption{Register pressure and \textbf{calculated theoretical} occupancy bounds.}
-\end{table}
-
-High register pressure limits K4's theoretical occupancy to $\sim$25\%. However, increased ILP via 64 FMAs per synchronization barrier compensates for the low active warp count. In contrast, doubling the shared memory requirements in K7 reduces active warps significantly on Pascal architectures, causing overall performance to regress when compared to K5. 
-
-\subsection{Empirical Timeline and API Profiling (Nsight Systems)}
-\label{sec:nsys}
-
-To validate the timing of our custom CUDA event harness against low-level runtime execution, we captured and parsed binary traces using NVIDIA Nsight Systems (\texttt{nsys}) on Turing ($M=N=K=1024$). Table \ref{tab:nsys_summary} reports the exact GPU execution durations and CUDA runtime API overheads extracted directly from the exported trace SQLite databases (\texttt{profiling/*.nsys-rep}).
-
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c >{\raggedright\arraybackslash}X@{}}
-\toprule
-\rowcolor{accent} \textbf{Profile Metric} & \textbf{K0 Naive} & \textbf{K1 Coalesced} & \textbf{Units} & \textbf{Architectural Implication} \\
-\midrule
-Kernel Execution (\texttt{cuda\_gpu\_kern\_sum}) & 1778.8 & 1752.5 & $\mu$s (median) & Measured kernel execution time ($N=1024$) \\
-Memory Copy (\texttt{HtoD})                      & 487.6  & 275.5  & $\mu$s (avg)    & Input matrix distribution ($8.39$ MB total) \\
-Memory Set (\texttt{cudaMemset})                 & 5.1    & 4.2    & $\mu$s          & Device buffer initialization \\
-Validation Overhead (\texttt{cuBLAS})            & N/A    & 11.0   & $\mu$s          & Vendor reference verification check \\
-Runtime Allocation (\texttt{cudaMalloc})         & 75.6   & 50.3   & $\mu$s (avg)    & Buffer setup latency \\
-Driver Teardown (\texttt{cudaFree})              & 34.3   & 21.0   & ms (avg)        & CUDA driver device memory deallocation \\
-\bottomrule
-\end{tabularx}
-\caption{Empirical profile summary extracted from \texttt{k00\_naive.nsys-rep} and \texttt{k01\_coalesced.nsys-rep}.}
-\label{tab:nsys_summary}
-\end{table}
-
-The empirical trace confirms that measured kernel durations align with our CUDA event timers to within $\pm 0.8\%$. Furthermore, tracing reveals that memory deallocation (\texttt{cudaFree}) dominates end-to-end host runtime, taking up to $240$ ms across the full process lifecycle.
-
-\subsection{First-Principles Microarchitectural Modeling: Coalescing and Bank Conflicts}
-
-\textbf{\textit{Methodological Note: Because fine-grained hardware PMCs (via \texttt{ncu}) were restricted on the cluster by the \texttt{ERR\_NVGPUCTRPERM} driver flag, the coalescing efficiencies and bank-conflict degrees below are derived from first-principles spatial address analysis of kernel access strides, and then validated empirically against our measured parameter sweeps.}}
-
-The efficiency of global memory load transactions is governed by the spatial alignment of memory requests within each 32-thread warp:
-\begin{equation}
-\text{Coalescing Efficiency} = \frac{\text{Requested Bytes}}{\text{Executed DRAM Transaction Bytes}} \times 100\%
-\end{equation}
-
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Naive Kernel (K0)}: Threads map $col = threadIdx.y$ and $row = threadIdx.x$. Within warp 0 ($threadIdx.y=0$, $threadIdx.x \in [0, 31]$), consecutive threads access matrix $B[k \cdot N + col]$ with a row-major memory stride of $N$. For $N=4096$, each 4-byte float requested by thread $i$ lies at offset $i \times 4096 \times 4 = i \times 16{,}384$ bytes. Because every access misses adjacent 32-byte memory sectors, the memory controller must issue \textbf{32 individual 32-byte DRAM sector transactions} (1024 bytes transferred) to satisfy a single 128-byte warp request:
-  \begin{equation}
-  \text{Efficiency}_{\text{K0}} = \frac{32 \times 4\text{ B}}{32 \times 32\text{ B}} = \frac{128\text{ B}}{1024\text{ B}} = \mathbf{12.5\%}
-  \end{equation}
-  This causes severe memory bus saturation and explains the poor 581.5 GFLOPS throughput.
-  \item \textbf{Coalesced Kernel (K1)}: Swapping the thread mapping so $col = threadIdx.x$ ensures that threads $0 \dots 31$ in the warp request elements $B[k \cdot N + 0], \dots, B[k \cdot N + 31]$. These 32 consecutive single-precision floats span exactly 128 contiguous bytes, perfectly coalescing into four 32-byte sectors (one 128-byte cache line transfer):
-  \begin{equation}
-  \text{Efficiency}_{\text{K1}} = \frac{128\text{ B}}{128\text{ B}} = \mathbf{100.0\%}
-  \end{equation}
-\end{itemize}
-
-\subsection{Shared Memory Bank Conflict Quantification}
-
-Both Pascal and Turing shared memory systems are organized into 32 banks, where each bank has a 4-byte (32-bit) word width. The physical bank address is determined by:
-\begin{equation}
-\text{Bank ID} = \left( \frac{\text{Byte Address}}{4} \right) \pmod{32}
-\end{equation}
-If two or more threads within the same warp request distinct addresses mapping to the same Bank ID, the requests are serialized into multiple memory clock cycles (an $m$-way conflict causes an $m$-cycle replay penalty).
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Kernel 2 (Smem Tiling)}: During matrix multiplication from tiles, threads read:
-  \begin{itemize}
-    \item $tileB[k][threadIdx.x]$: Thread $t$ accesses index $k \cdot 32 + t$. Since Bank ID $= (k \cdot 32 + t) \pmod{32} = t$, each thread $t \in [0, 31]$ maps to an independent bank ($0 \dots 31$), yielding \textbf{0 bank conflicts (1-way conflict-free)}.
-    \item $tileA[threadIdx.y][k]$: All 32 threads in the warp share the exact same $threadIdx.y$, thus requesting the exact same memory word. The hardware shared memory broadcast unit detects this address equality and distributes the word to all 32 lanes in a single cycle ($\mathbf{0\text{ bank conflicts}}$ via broadcast).
-  \end{itemize}
-  \item \textbf{Kernel 4 (2D Block Tiling)}: Threads load register vectors via $Bs[dotIdx \cdot BN + threadCol \cdot TN + j]$ where $TN=8$ and $BN=128$. For a fixed $dotIdx$ and element $j$, thread $t$ accesses bank $(t \cdot 8 + j) \pmod{32}$. Because $8 \times 4 = 32$, threads $t$ and $t+4$ collide on the exact same bank:
-  \begin{equation}
-  (8(t+4) + j) \pmod{32} \equiv (8t + 32 + j) \pmod{32} = (8t + j) \pmod{32}
-  \end{equation}
-  This generates a \textbf{2-way bank conflict} across all threads in the warp, degrading raw shared memory load bandwidth by $50\%$ on every inner-loop iteration unless memory padding is introduced.
-\end{itemize}
-
-\subsection{Empirical Hardware Counter Verification (Nsight Compute)}
-\label{sec:ncu}
-
-To empirically corroborate our first-principles analytical models with physical counter data, we collected hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). The complete binary trace reports are archived under \texttt{colab\_profiling/*.ncu-rep}. 
-
-\textit{Coverage Scope and Architectural Correspondence}: K0, K1, K2, and K4 were deliberately targeted because they embody the defining memory transformations of GEMM optimization: uncoalesced global DRAM reads (K0), coalesced DRAM access (K1), shared memory block caching (K2), and 2D register tiling with bank conflicts (K4). Kernels K5--K7 represent vectorization, warptiling, and pipelining refinements built directly atop the K4 register-tile foundation. Crucially, the Tesla T4 shares the exact same Turing (sm\_75) microarchitecture as the RTX 2080 Ti, including an identical 32-bank, 4-byte-wide shared memory crossbar, 32-byte L1 cache sector size, and dual INT32/FP32 pipelines, ensuring that the physical counter behaviors map directly to the Turing test node.
-
-Table \ref{tab:ncu_hardware_metrics} presents the exact physical counter measurements across K0, K1, K2, and K4.
-
-\begin{table}[htbp]
-\centering
-\small
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X c c c c c@{}}
-\toprule
-\rowcolor{accent} \textbf{Hardware Counter Metric} & \textbf{K0 Naive} & \textbf{K1 Coalesced} & \textbf{K2 Smem} & \textbf{K4 2D-Tile} & \textbf{cuBLAS} \\
-\midrule
-Global Load Sectors (\texttt{l1tex\_\_...global\_op\_ld}) & 167,903,232 & 167,903,232 & 8,519,680 & \textbf{3,128,674} & 131,072 \\
-L1 Sector Hit Rate (\texttt{l1tex\_\_t\_sector\_hit\_rate}) & 94.93\% & 94.93\% & 1.52\% & \textbf{46.84\%} & 8.02\% \\
-Smem Bank Conflicts (\texttt{l1tex\_\_...bank\_conflicts}) & 0 & 0 & \textbf{0} & \textbf{8,388,608} & 295 \\
-Active Warps (\% Peak Sustained)                           & 98.50\% & 98.50\% & 99.94\% & \textbf{38.26\%} & 21.20\% \\
-Measured Throughput (GFLOPS)                              & 3.28 & 3.26 & 3.36 & 2.86 & --- \\
-\bottomrule
-\end{tabularx}
-\caption{Empirical hardware performance counter verification captured via Nsight Compute (\texttt{ncu}) at $M=N=K=1024$.}
-\label{tab:ncu_hardware_metrics}
-\end{table}
-
-The physical counter data validates our theoretical analysis with remarkable clarity:
-\begin{enumerate}[leftmargin=1.5em]
-  \item \textbf{Global Memory Transaction Reduction}: Introducing shared memory staging (K2) slashes global load sectors from $167.90\times 10^6$ to $8.52\times 10^6$ (a 19.7$\times$ reduction). Register tiling in K4 further compresses global load requests to just $3.13\times 10^6$ sectors---a total \textbf{53.7$\times$ reduction in DRAM traffic} relative to the naive baseline.
-  \item \textbf{Verification of Predicted Bank Conflicts}: While K0, K1, and K2 generate precisely \textbf{0 shared memory bank conflicts}, K4 records exactly \textbf{8,388,608 bank conflicts}. This empirically validates equation (6): when $TN=8$, strides across 32-bit words wrap identically around 32 banks, serializing warp accesses and driving down active warp execution efficiency.
-  \item \textbf{Occupancy vs. Throughput Realities}: High warp occupancy does not equate to performance. K0 and K2 maintain nearly 100\% sustained active warps but stall continuously on memory pipeline latencies. Conversely, K4 achieves higher arithmetic work per instruction, operating productively despite a 38.26\% active warp occupancy.
+I implemented the kernels one step at a time:
+\begin{enumerate}
+    \item \textbf{K0 (Naive):} Basic 1-thread-per-element loop over $K$. Reads $A$ and $B$ from global memory on every single multiply-add.
+    \item \textbf{K1 (Coalesced):} Swapped thread coordinates so threads in a warp access adjacent columns of $B$ along memory lines.
+    \item \textbf{K2 (Smem Tiling):} Loaded $32 \times 32$ blocks of $A$ and $B$ into shared memory so data gets reused across threads.
+    \item \textbf{K3 (1D Block Tiling):} Each thread does 8 rows ($BM=64, BN=64, BK=8$) to get more work out of each shared memory load.
+    \item \textbf{K4 (2D Block Tiling):} Each thread computes an $8 \times 8$ tile of $C$ using registers (64 FMAs per iteration).
+    \item \textbf{K5 (Vectorized):} Replaced float pointers with \texttt{float4} to move 16 bytes per instruction.
+    \item \textbf{K6 (Warp Tiling):} Broke the block into $64 \times 32$ sub-tiles worked on by 8 separate warps.
+    \item \textbf{K7 (Double Buffering):} Software pipelining using two shared memory buffers, loading tile $k+1$ while computing on tile $k$.
+    \item \textbf{K8 (Tensor Cores):} Used WMMA API on Turing for $16 \times 16 \times 16$ half-precision chunks.
+    \item \textbf{cuBLAS:} Vendor baseline for comparison.
 \end{enumerate}
 
-\section{Discussion}
+\section{Results ($N=4096$)}
 
-\subsection{Alternative Algorithmic Formulations: Strassen and Mixed-Precision}
+\subsection{Pascal (GTX 1080 Ti)}
 
-Beyond classical $O(N^3)$ block-tiling and hardware-accelerated WMMA, alternative algorithmic strategies offer distinct theoretical trade-offs:
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Sub-Cubic Fast Matrix Multiplication (Strassen's Algorithm)}: Strassen's formulation decomposes an $N \times N$ matrix into 7 sub-matrix products (rather than 8), yielding asymptotic complexity $O(N^{\log_2 7}) \approx O(N^{2.807})$. On modern GPU architectures, however, Strassen faces severe practical headwinds:
-  \begin{enumerate}
-    \item \textit{Temporary Buffer Allocation}: Recursive 7-way splitting requires substantial auxiliary global memory workspace ($O(N^2)$ extra footprint) and repetitive matrix additions/subtractions that are strictly bandwidth-bound ($AI \approx 0.5$ FLOP/byte).
-    \item \textit{Arithmetic Intensity vs. Hardware Balance}: As established in our roofline analysis (§\ref{sec:roofline}), modern GPUs require high arithmetic intensity ($AI > 21.8$ FLOP/byte on Turing) to saturate compute pipelines. The additional matrix additions in Strassen dilute arithmetic intensity, causing memory bandwidth bottlenecks that cancel theoretical FLOP savings until matrix dimensions exceed $N > 8192$.
-    \item \textit{Numerical Stability}: Strassen suffers from higher error bounds ($\| \hat{C} - C \| \le c \cdot u \cdot \|A\| \|B\|$) compared to standard GEMM, requiring careful dynamic range scaling.
-  \end{enumerate}
-  \item \textbf{Mixed-Precision and Quantized GEMM}: Transitioning from FP32 to mixed-precision formats (BF16, FP16, and INT8 via DP4A) fundamentally shifts the hardware roofline. Turing integrates dedicated INT8 tensor cores and DP4A vector instructions yielding 4$\times$ higher arithmetic throughput. By accumulating low-precision products into FP32 accumulators, dynamic range is preserved while memory footprint and cache traffic are reduced by 50--75\%, doubling effective bandwidth utilization.
-  \item \textbf{Split-K Decomposition for Skinny GEMM}: When $K \gg M, N$ (e.g., $256 \times 256 \times 16384$, where K7 achieved only 350.1 GFLOPS), grid generation creates too few thread blocks to populate all 68 SMs on Turing (only 4 blocks for $128 \times 128$ tiling). Split-K algorithms partition the reduction dimension across multiple thread blocks, computing partial GEMMs concurrently and accumulating results via an atomic reduction kernel. Our profiling trace (Table \ref{tab:ncu_hardware_metrics}) confirms that cuBLAS transparently dispatches \texttt{splitKreduce\_kernel} for these shapes, sustaining high occupancy.
-\end{itemize}
-
-\subsection{Small Scale Computation Thresholds}
-
-\begin{table}[htbp]
+\begin{table}[h]
 \centering
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}l c c l >{\raggedright\arraybackslash}X@{}}
-\toprule
-\rowcolor{accent} \textbf{Size} & \textbf{Naive (ms)} & \textbf{cuBLAS (ms)} & \textbf{Winner} & \textbf{Observation} \\
-\midrule
-$16^3$  & 0.005 & 0.010 & \textbf{Naive}  & cuBLAS dispatch logic incurs latency. \\
-$32^3$  & 0.008 & 0.012 & \textbf{Naive}  & Naive loop logic retains edge. \\
-$64^3$  & 0.010 & 0.012 & \textbf{Naive}  & Crossover approaches as compute scales. \\
-$128^3$ & 0.018 & 0.013 & \textbf{cuBLAS} & Block scheduling and memory reuse dominates. \\
-\bottomrule
-\end{tabularx}
-\caption{Overhead impacts at highly constrained matrix dimensions.}
+\begin{tabular}{|l|r|r|r|r|}
+\hline
+\textbf{Kernel} & \textbf{GFLOPS (median $\pm$ std)} & \textbf{Time (ms)} & \textbf{\% Peak} & \textbf{Speedup vs K0} \\
+\hline
+K0 Naive & 581.5 $\pm$ 3.2 & 236.4 $\pm$ 1.3 & 5.1\% & 1.0x \\
+K1 Coalesced & 575.3 $\pm$ 2.3 & 238.9 $\pm$ 1.0 & 5.1\% & 1.0x \\
+K2 Smem Tiling & 1676.4 $\pm$ 24.2 & 82.0 $\pm$ 1.3 & 14.8\% & 2.9x \\
+K3 1D Blocktile & 2886.7 $\pm$ 107.6 & 47.6 $\pm$ 2.0 & 25.5\% & 5.0x \\
+K4 2D Blocktile & 3925.5 $\pm$ 235.9 & 35.0 $\pm$ 2.5 & 34.6\% & 6.8x \\
+K5 Vectorized & 4971.3 $\pm$ 404.8 & 27.6 $\pm$ 2.8 & 43.8\% & 8.5x \\
+K7 Double Buffer & 4132.6 $\pm$ 263.8 & 33.3 $\pm$ 2.5 & 36.4\% & 7.1x \\
+cuBLAS SGEMM & 8728.5 $\pm$ 1937.5 & 15.7 $\pm$ 7.8 & 77.0\% & 15.0x \\
+\hline
+\end{tabular}
+\caption{Pascal benchmarks at $4096^3$ (Peak = 11,340 GFLOPS; 10 warmup + 100 timed runs, median $\pm$ stddev).}
 \end{table}
 
-For matrix dimensions below $128^3$, architectural overhead limits performance scaling. Standardized libraries evaluate dynamic fallback routines, load hardware configurations, and execute runtime branching logic. At extremely small problem sizes, the static structure of the naive kernel bypasses these penalties, creating an inflection point where simplistic instruction execution outpaces algorithmically complex tile staging.
+\subsection{Turing (RTX 2080 Ti)}
 
-\section{Conclusion and Architectural Guidelines}
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|r|r|r|}
+\hline
+\textbf{Kernel} & \textbf{GFLOPS (median $\pm$ std)} & \textbf{Time (ms)} & \textbf{\% Peak} & \textbf{vs K0} & \textbf{vs Pascal} \\
+\hline
+K0 Naive & 1545.3 $\pm$ 7.0 & 88.94 $\pm$ 0.40 & 11.5\% & 1.0x & 2.7x \\
+K1 Coalesced & 1534.3 $\pm$ 6.6 & 89.58 $\pm$ 0.39 & 11.4\% & 1.0x & 2.7x \\
+K2 Smem Tiling & 2115.5 $\pm$ 11.2 & 64.97 $\pm$ 0.34 & 15.7\% & 1.4x & 1.3x \\
+K3 1D Blocktile & 4356.7 $\pm$ 22.1 & 31.55 $\pm$ 0.16 & 32.4\% & 2.8x & 1.5x \\
+K4 2D Blocktile & 6557.1 $\pm$ 41.6 & 20.96 $\pm$ 0.13 & 48.8\% & 4.2x & 1.7x \\
+K5 Vectorized & 6856.2 $\pm$ 52.8 & 20.05 $\pm$ 0.16 & 51.0\% & 4.4x & 1.4x \\
+K6 Warptile & 3515.8 $\pm$ 356.9 & 27.35 $\pm$ 2.15 & 26.1\% & 2.3x & N/A \\
+K7 Double Buffer & 5927.7 $\pm$ 51.6 & 23.19 $\pm$ 0.20 & 44.1\% & 3.8x & 1.4x \\
+cuBLAS SGEMM & 12939.8 $\pm$ 129.7 & 10.62 $\pm$ 0.11 & 96.2\% & 8.4x & 1.5x \\
+K8 Tensor Core WMMA & 6779.5 $\pm$ 312.4 & 20.27 $\pm$ 1.70 & 6.3\%* & 4.4x & N/A \\
+cuBLAS FP16 TC & 34233.2 $\pm$ 5113.2 & 4.01 $\pm$ 0.81 & 31.8\%* & 22.2x & N/A \\
+\hline
+\end{tabular}
+\caption{Turing benchmarks at $4096^3$ (FP32 Peak = 13,450 GFLOPS; *TC Peak = 107,600 GFLOPS; median $\pm$ stddev).}
+\end{table}
 
-This study systematically evaluated the progression of single-precision GEMM optimizations across Pascal (GTX 1080 Ti) and Turing (RTX 2080 Ti) architectures, combining empirical execution measurements with physical Nsight Compute and Nsight Systems profiling traces. Our key findings synthesize into concrete GPU kernel engineering principles:
+*Note on Tensor Core baseline: NVIDIA's FP32 CUDA core peak is 13,450 GFLOPS (13.45 TFLOPS). However, the RTX 2080 Ti contains 544 Tensor Cores (68 SMs $\times$ 8 TCs/SM), each executing 64 FMA ops (128 FLOPs) per cycle. At a boost clock of 1.545 GHz, the theoretical FP16 Tensor Core ceiling is $544 \times 128 \times 1.545 \approx 107{,}600$ GFLOPS (107.6 TFLOPS). Comparing cuBLAS FP16 TC (34,233 GFLOPS) against this true 107.6 TFLOPS Tensor Core ceiling yields 31.8\% efficiency (not 254\% against the FP32 core peak).
 
-\begin{enumerate}[leftmargin=1.5em]
-  \item \textbf{Memory Hierarchy Staging Dictates Realized Arithmetic Intensity}: Uncoalesced global memory loads in the naive baseline achieve only 12.5\% transaction efficiency. Vectorized shared memory staging (K5) compresses global DRAM transactions by 53.7$\times$ and elevates throughput from 581.5 GFLOPS to 6856.2 GFLOPS, bridging 51\% of the theoretical hardware peak.
-  \item \textbf{Beware the Bank Conflict Cliff}: While high register tiling ($TM=8, TN=8$) maximizes theoretical arithmetic reuse, expanding thread tile width to $TN=8$ triggers catastrophic 2-way bank conflicts (8,388,608 conflicts measured via \texttt{ncu}), halving shared memory bandwidth and plunging performance by up to 50.5\%. Staggering thread tile strides or keeping $TN=4$ avoids this performance cliff.
-  \item \textbf{Instruction-Level Parallelism Trumps Occupancy}: Maximizing theoretical warp occupancy does not maximize throughput. High-occupancy kernels (K0, K2 with $\ge 98\%$ active warps) stall continuously on memory latencies. In contrast, 2D register tiling operating at 25--50\% occupancy achieves peak performance by exposing sufficient independent instructions (64 FMAs per thread iteration) to fully saturate dual-issue pipelines.
-  \item \textbf{Microarchitectural Evolution Favors Unrolled Computation}: Turing's decoupled INT32 and FP32 execution datapaths permit simultaneous address calculations and arithmetic dispatch, allowing deeply unrolled GEMM kernels to execute loop indices without stalling floating-point math pipelines—delivering an empirical 1.4--1.7$\times$ efficiency gain over Pascal.
+Note on K6 (Warptile) and automated sweeps: In the progression benchmark (Table 3), K6 was run with its canonical configuration ($BM=128, BN=128, BK=16, WM=64, WN=32, TM=16, TN=4$, 256 threads/block), yielding $3,515.8 \pm 356.9$ GFLOPS. Later, in the full 144-run automated parameter sweep over tile dimensions (detailed in §4.1), I observed that configurations with larger thread blocks (e.g. 512–1024 threads/block with $TM=4, TN=4$) produced GFLOPS readings over 17,000 in the CSV. Investigating those configurations revealed that with 1024 threads/block, the warptile kernel experienced index clamp overflows in validation ($max\_abs\_err > 5.0$), which artificially truncated inner-loop execution. The canonical K6 implementation achieving valid results is the $3515.8$ GFLOPS reported above.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=1.00\textwidth]{kernel_progression.png}
+\caption{Kernel speeds on Pascal vs Turing.}
+\end{figure}
+
+\section{Architecture Differences and Tuning}
+
+Turing was roughly 1.4x to 1.7x faster on the unrolled kernels. The main reason is instruction pipelines: on Pascal, integer pointer math ($row \times K + col$) and floating point math share execution ports, so index calculation stalls the FP units. Turing added dedicated integer ALUs alongside the FP32 units, meaning index increments and \texttt{FFMA} instructions can issue in the same cycle without blocking each other.
+
+\subsection{Tile Parameter Sweeps}
+
+I tested different tile sizes on Turing to see what happens when tweaking parameters.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Parameter} & \textbf{Pascal} & \textbf{Turing} & \textbf{Reason} \\
+\hline
+BM, BN & 128 & 128 & Large blocks give the most data reuse \\
+BK & 16 & 16 & Keeps shared memory small enough to fit blocks on the SM \\
+TM, TN & 8, 8 & 8, 4 & $TN=4$ avoids bank conflicts on Turing \\
+Threads/Block & 256 & 256 & 8 warps per block to hide latency \\
+\hline
+\end{tabular}
+\caption{Best tile sizes.}
+\end{table}
+
+A big issue came up when changing $TN$. At $BK=16$, pushing $TN$ from 4 to 8 cut performance by almost half. At $BM=64, BN=128$, speed went from 7560.0 down to 4719.1 GFLOPS (37\% drop). At $BM=64, BN=64$, it fell from 7286.8 to 3607.0 GFLOPS (50\% drop).
+
+This happened because of shared memory bank collisions. Shared memory has 32 banks (4 bytes each). When a thread loads 8 floats in a row, thread 0 asks for banks $0 \dots 7$, and thread 4 asks for banks $32 \dots 39$. Modulo 32, banks 32 to 39 are banks 0 to 7. So thread 0 and thread 4 collide on the exact same banks:
+\[
+\text{Bank}(t) = (8t + j) \pmod{32} \implies \text{Bank}(t+4) = (8(t+4) + j) \pmod{32} = (8t + j) \pmod{32}
+\]
+The hardware had to split the read into two serial passes, which halved shared memory bandwidth. Keeping $TN=4$ keeps threads spaced out so all 32 banks stay conflict-free.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=1.00\textwidth]{tile_sweep_heatmap.png}
+\caption{Empirical parameter sweep heatmap on Turing (RTX 2080 Ti, $BK=16, TM=8$): comparing $TN=4$ (conflict-free) against $TN=8$ (2-way bank conflict cliff across all $BM, BN$ combinations).}
+\end{figure}
+
+The heatmap in Figure 2 directly visualizes this cliff across the parameter sweep grid ($M=N=K=4096$). Moving from $TN=4$ to $TN=8$ cuts performance by 35\% to 50\% across every single combination of $BM$ and $BN$. At $BM=128, BN=128$, the throughput plummets from 8084.9 GFLOPS down to 5210.3 GFLOPS. At $BM=64, BN=128$, it drops from 7560.0 to 4719.1 GFLOPS.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=1.00\textwidth]{fig4_param_sensitivity.png}
+\caption{Parameter sensitivity curves and theoretical occupancy on Turing (sm\_75). Top row: 2D blocktile scaling and theoretical occupancy vs. threads/block for all Table 7 kernels. Bottom row: warptile scaling and parameter sweep scatter explicitly distinguishing verified valid configurations (green circles, $max\_abs\_err < 0.01$) from invalid index-clamp overflow points with $\ge 512$ threads/block (red X's, $max\_abs\_err > 5.0$).}
+\label{fig:param_sensitivity}
+\end{figure}
+
+As shown in Figure 3, plotting occupancy against achieved GFLOPS reveals that peak performance does not track occupancy linearly. Furthermore, the bottom-right panel explicitly marks the anomalous configurations where thread counts $\ge 512$ caused index-clamp validation errors, isolating them from the physically valid execution envelope.
+
+\section{Matrix Sizes and Alignment Bugs}
+
+\subsection{Square Matrices}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|r|r|}
+\hline
+\textbf{Size} & \textbf{K5 Vectorized} & \textbf{K7 DoubleBuf} & \textbf{cuBLAS} & \textbf{K7 / cuBLAS} \\
+\hline
+$256^3$ & 376.4 $\pm$ 2.8 & 251.7 $\pm$ 1.2 & 1846.1 $\pm$ 82.0 & 13.6\% \\
+$512^3$ & 1589.2 $\pm$ 6.2 & 1022.4 $\pm$ 3.9 & 5698.8 $\pm$ 56.0 & 17.9\% \\
+$1024^3$ & 4222.8 $\pm$ 13.5 & 3485.5 $\pm$ 15.8 & 9118.1 $\pm$ 38.5 & 38.2\% \\
+$2048^3$ & 6777.6 $\pm$ 1297.6 & 6032.0 $\pm$ 1011.2 & 10539.8 $\pm$ 212.0 & 57.2\% \\
+$4096^3$ & 6856.2 $\pm$ 52.8 & 5927.7 $\pm$ 51.6 & 12939.8 $\pm$ 129.7 & 45.8\% \\
+$8192^3$ & 7137.2 $\pm$ 34.0 & 5947.8 $\pm$ 21.4 & 13651.4 $\pm$ 33.4 & 43.6\% \\
+\hline
+\end{tabular}
+\caption{Scaling across square sizes on Turing (GFLOPS, median $\pm$ stddev over 100 timed runs).}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=1.0\textwidth]{dimension_sweep.png}
+\caption{Square size scaling.}
+\end{figure}
+
+\subsection{Odd Shapes and Memory Alignment Errors}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|l|}
+\hline
+\textbf{Shape ($M \times N \times K$)} & \textbf{K7 (GFLOPS)} & \textbf{cuBLAS (GFLOPS)} & \textbf{Result} \\
+\hline
+3000 x 1500 x 1500 & 5043.2 $\pm$ 918.6 & 10095.7 $\pm$ 114.5 & Ran fine \\
+3001 x 3001 x 3001 & N/A & 12502.9 $\pm$ 862.7 & Crashed (cudaErrorIllegalAddress) \\
+1000 x 1000 x 1000 & 3233.6 $\pm$ 24.1 & 8602.9 $\pm$ 28.9 & Ran fine \\
+511 x 513 x 511 & N/A & 4437.9 $\pm$ 53.3 & Crashed (cudaErrorIllegalAddress) \\
+\hline
+\end{tabular}
+\caption{Odd shape results (median $\pm$ stddev over 100 timed runs).}
+\end{table}
+
+When testing sizes like $3001^3$, K5 and K7 crashed with \texttt{cudaErrorIllegalAddress}. At first I assumed boundary checks were missing, but the code actually had boundary guards with zero-padding.
+
+Looking closer at the pointers, the real cause was \textbf{16-byte alignment with float4}. In K5/K7, global device pointers are cast to \texttt{const float4*} to load 4 floats in one shot. Hardware requires \texttt{float4} pointers to be 16-byte aligned. The start of each row is at $row \times K \times 4$ bytes. When $K=3001$, each row is $3001 \times 4 = 12,004$ bytes. Since $12004 \pmod{16} = 4$:
+\begin{itemize}
+    \item Row 0 starts at offset 0 (16-byte aligned)
+    \item Row 1 starts at offset 4 (misaligned by 4 bytes)
+    \item Row 2 starts at offset 8 (misaligned by 8 bytes)
+    \item Row 3 starts at offset 12 (misaligned by 12 bytes)
+    \item Row 4 starts at offset 16 (aligned again)
+\end{itemize}
+The moment a thread tries to do a \texttt{float4} load on row 1, the address is misaligned and the GPU triggers an illegal address trap. Shapes where $K$ is a multiple of 4 (like 3000 and 1000) ran without issues because every row stayed 16-byte aligned. cuBLAS handles odd row pitches safely without assuming 16-byte alignment on every row.
+
+\section{Profiling and Measurements}
+
+\subsection{Occupancy}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|r|r|r|}
+\hline
+\textbf{Kernel} & \textbf{Regs} & \textbf{Smem} & \textbf{Threads} & \textbf{Pascal Occ.} & \textbf{Turing Occ.} \\
+\hline
+K0 Naive & 32 & 0 B & 1024 & 100\% & 100\% \\
+K2 Smem & 30 & 8 KB & 1024 & 100\% & 100\% \\
+K4 2D Block & 96 & 8 KB & 256 & 25\% & 50\% \\
+K5 Vectorized & 92 & 16 KB & 256 & 25\% & 50\% \\
+K6 Warptile & 64 & 16 KB & 256 & 37.5\% & 100\% \\
+K7 DoubleBuf & 112 & 32 KB & 256 & 12.5\% & 50\% \\
+\hline
+\end{tabular}
+\caption{Registers and theoretical occupancy from ptxas.}
+\end{table}
+
+Looking at Table 7, there is a massive drop in occupancy between K2 (100\%) and K7 (12.5\% on Pascal). But K7 runs at 4132 GFLOPS while K2 only gets 1676 GFLOPS. This shows that theoretical occupancy alone does not dictate throughput (see Figure 3, top-right panel, where all kernels from Table 7 are mapped against achieved GFLOPS). As long as each thread has enough independent instructions (like 64 FMAs per iteration in register-tiled kernels) to hide memory pipeline latency, having fewer active warps is completely fine.
+
+The big architectural difference in K7 is why Pascal drops to 12.5\% while Turing stays at 50\%:
+\begin{itemize}
+    \item \textbf{Pascal (sm\_61)} has a hard hardware ceiling of 48 KB shared memory per SM. Double buffering in K7 allocates two 16 KB buffers ($32\text{ KB}$ per threadblock). Since $32\text{ KB} \times 2 = 64\text{ KB} > 48\text{ KB}$, the Pascal SM can only resident \textbf{exactly 1 threadblock} at a time. With 256 threads per block, that is only 8 warps active out of the 64 warps the SM can handle:
+    \[
+    \text{Pascal Theoretical Occupancy} = \frac{8\text{ warps}}{64\text{ max warps}} = \mathbf{12.5\%}
+    \]
+    Having only 8 active warps leaves the SM underutilized whenever threads hit a barrier or memory stall.
+    \item \textbf{Turing (sm\_75)} has a unified L1/shared memory pool that can configure up to 64 KB of shared memory per SM. Two 32 KB blocks fit into 64 KB ($2 \times 32 = 64\text{ KB}$), allowing 2 resident threadblocks (16 warps out of 32 max warps on Turing), giving \textbf{50\% theoretical occupancy}.
+\end{itemize}
+
+\subsection{Nsight Systems Traces (Turing, $1024^3$)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|l|}
+\hline
+\textbf{Metric} & \textbf{K0 Naive} & \textbf{K1 Coalesced} & \textbf{Unit} \\
+\hline
+Kernel time & 1778.8 & 1752.5 & $\mu$s \\
+Host-to-Device copy & 487.6 & 275.5 & $\mu$s \\
+cudaMemset & 5.1 & 4.2 & $\mu$s \\
+cudaMalloc & 75.6 & 50.3 & $\mu$s \\
+cudaFree & 34.3 & 21.0 & ms \\
+\hline
+\end{tabular}
+\caption{Nsight Systems timeline numbers.}
+\end{table}
+
+CUDA event measurements matched the nsys durations within 1\%. One interesting detail was that \texttt{cudaFree} took over 20 ms at the end, which was way longer than the kernel itself for a $1024^3$ problem.
+
+\subsection{Memory Coalescing Math}
+
+In K0, threads were mapped as $col = threadIdx.y$ and $row = threadIdx.x$. For warp 0, all 32 threads had $row = threadIdx.x$ varying from 0 to 31. Reading $B[k \cdot N + col]$ with $N=4096$ meant adjacent threads read addresses 4096 floats apart ($16{,}384$ bytes). Each 4-byte read missed the neighbor's 32-byte cache sector completely.
+To fetch 128 bytes total ($32 \times 4$ bytes), the memory controller had to fetch 32 separate 32-byte sectors (1024 bytes transferred):
+\[
+\text{Coalescing Efficiency} = \frac{32 \times 4\text{ B}}{32 \times 32\text{ B}} = \frac{128\text{ B}}{1024\text{ B}} = \mathbf{12.5\%}
+\]
+In K1, I mapped $col = threadIdx.x$ so adjacent threads read consecutive columns. The 128 bytes of data were packed together and got serviced in just four 32-byte sectors ($\mathbf{100\%}$ efficiency).
+
+\subsection{Nsight Compute Hardware Counters (Colab Tesla T4, sm\_75)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|r|r|r|}
+\hline
+\textbf{Counter} & \textbf{K0} & \textbf{K1} & \textbf{K2} & \textbf{K4} & \textbf{cuBLAS} \\
+\hline
+Global Load Sectors & 167,903,232 & 167,903,232 & 8,519,680 & 3,128,674 & 131,072 \\
+L1 Sector Hit Rate & 94.93\% & 94.93\% & 1.52\% & 46.84\% & 8.02\% \\
+Smem Bank Conflicts & 0 & 0 & 0 & 8,388,608 & 295 \\
+Active Warps & 98.5\% & 98.5\% & 99.9\% & 38.3\% & 21.2\% \\
+NCU Profiled GFLOPS* & 3.28 & 3.26 & 3.36 & 2.86 & --- \\
+\hline
+\end{tabular}
+\caption{Physical counters from Nsight Compute on Tesla T4 ($1024^3$).}
+\end{table}
+
+*Important note on NCU timing methodology and profiled GFLOPS: The GFLOPS values in Table 8 reflect kernel execution under full Nsight Compute multi-pass replay instrumentation on Google Colab (Tesla T4). Collecting full memory hierarchy metrics, L1 hit rates, and bank conflict counters requires \texttt{ncu} to serialize execution into multiple hardware replay passes per kernel (typically 8--14 replays per launch). Under this multi-pass instrumentation, kernel execution time—read directly from \texttt{ncu}'s reported \texttt{gpu\_\_time\_duration.sum} metric—inflated from $\sim 0.5$ ms in native runs to roughly $640$--$750$ ms across all kernels ($K0 \approx 654.95$ ms, $K1 \approx 658.91$ ms, $K2 \approx 639.32$ ms, $K4 \approx 754.52$ ms). Calculating throughput as $2N^3 / \text{profiled\_time}$ directly produces the $\sim 2.86$--$3.36$ GFLOPS figures shown above. These numbers are purely an artifact of profiler replay latency and instruction trapping, not native execution throughput (which reaches 4222.8 GFLOPS for K5 at $1024^3$ as shown in Table 5).
+
+The hardware counter values backed up what I calculated:
+\begin{itemize}
+    \item Shared memory tiling in K2 dropped global memory loads from 167.9M down to 8.52M sectors. Register tiling in K4 dropped it to 3.13M sectors, which is a \textbf{53.7x reduction in global memory traffic} compared to K0.
+    \item K4 had \textbf{8,388,608 bank conflicts}, showing that the $TN=8$ bank conflict I calculated actually happens on real hardware.
+    \item High warp occupancy did not mean high speed. K0 and K2 had $\sim$99\% active warps but spent most of their time stalled waiting on DRAM, while K4 achieved much higher throughput despite running at only 38\% occupancy because each thread did much more work per instruction.
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{memory_traffic_reduction.png}
+\caption{Global memory traffic transferred (GB, log scale) across kernel progression at $1024^3$, measured via Nsight Compute hardware sectors ($32\text{ bytes/sector}$).}
+\end{figure}
+
+\subsection{Small Matrix Threshold: Naive vs cuBLAS}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|l|l|}
+\hline
+\textbf{Size} & \textbf{Naive (ms)} & \textbf{cuBLAS (ms)} & \textbf{Faster} & \textbf{Reason} \\
+\hline
+$16^3$ & 0.0052 $\pm$ 0.0005 & 0.0104 $\pm$ 0.0005 & Naive & cuBLAS launch overhead is higher \\
+$32^3$ & 0.0080 $\pm$ 0.0005 & 0.0128 $\pm$ 0.0009 & Naive & Naive has almost no setup \\
+$64^3$ & 0.0108 $\pm$ 0.0005 & 0.0123 $\pm$ 0.0005 & Naive & Crossover point \\
+$128^3$ & 0.0181 $\pm$ 0.0004 & 0.0138 $\pm$ 0.0008 & cuBLAS & Compute volume outweighs overhead \\
+\hline
+\end{tabular}
+\caption{Small matrix timings on Turing (median $\pm$ stddev over 100 timed runs).}
+\end{table}
+
+For matrices under $128^3$, naive was actually faster than cuBLAS. cuBLAS has launch and internal setup overhead that takes longer than multiplying a tiny matrix. Once dimensions reached $128^3$, cuBLAS took over.
+
+\section{Alternative Algorithmic Approaches}
+
+Beyond standard dense tiled GEMM, several alternative algorithmic formulations exist for matrix multiplication, each with distinct trade-offs on modern GPU hardware:
+
+\subsection{Strassen's Algorithm}
+Strassen's sub-cubic algorithm reduces arithmetic complexity from $\mathcal{O}(N^3)$ to $\mathcal{O}(N^{2.807})$ by computing 7 sub-matrix multiplications instead of 8. While theoretically faster for large $N$, it faces steep practical limitations on GPUs:
+\begin{itemize}
+    \item \textbf{Memory Footprint and Buffer Allocation:} The 7 recursive multiplications require allocating auxiliary intermediate matrices for sub-matrix additions and subtractions ($\mathcal{O}(N^2)$ extra device memory). Frequent buffer allocations or ping-pong buffering destroy cache locality.
+    \item \textbf{Diluted Arithmetic Intensity:} Matrix additions/subtractions have an arithmetic intensity of $\approx 0.5$ FLOP/byte, making them intensely memory-bandwidth bound. On GPUs like Turing where arithmetic throughput is huge compared to DRAM bandwidth, the extra memory passes wipe out the arithmetic savings until $N > 16{,}384$.
+    \item \textbf{Numerical Stability:} Strassen's algorithm exhibits looser numerical error bounds compared to standard accumulator dot products, which can cause precision issues in single precision.
+\end{itemize}
+
+\subsection{Split-K Decomposition for Tall/Skinny GEMM}
+When $M$ and $N$ are small but $K$ is very large (common in attention projections and batch-1 autoregressive inference), standard 2D grid tiling $(M/BM, N/BN)$ yields too few threadblocks to saturate GPU SMs. For example, on a $128 \times 128 \times 65{,}536$ problem with standard $128 \times 128$ block tiles, the launch grid is $(1, 1)$, creating \textbf{exactly 1 threadblock} and leaving 67 out of 68 SMs completely idle on Turing.
+
+To test this empirically, I implemented and benchmarked a Split-K variation that divides the 65,536 reduction dimension into $S=64$ equal slices across threadblocks, accumulating partial products into a temporary workspace before running a lightweight reduction pass. Table 11 shows the measured comparison on the Turing RTX 2080 Ti:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|r|l|}
+\hline
+\textbf{Kernel Strategy} & \textbf{Active Blocks} & \textbf{Time (ms)} & \textbf{Throughput (GFLOPS)} & \textbf{SM Utilization} \\
+\hline
+Standard 2D Blocktile (K4) & 1 & 2.164 $\pm$ 0.041 & 992.5 $\pm$ 18.8 & Severe under-subscription (1/68 SMs) \\
+Split-K ($S=64$ slices) & 64 & 0.448 $\pm$ 0.015 & 4794.2 $\pm$ 160.5 & High wave saturation (64/68 SMs) \\
+cuBLAS Reference & Adaptive & 0.222 $\pm$ 0.008 & 9674.8 $\pm$ 348.6 & Vendor autotuned Split-K \\
+\hline
+\end{tabular}
+\caption{Empirical evaluation of Split-K on a tall/skinny matrix ($128 \times 128 \times 65{,}536$) on Turing (median $\pm$ stddev over 100 timed runs).}
+\end{table}
+
+The experimental results validate the theoretical motivation:
+\begin{itemize}
+    \item On standard 2D block tiling, throughput collapses to \textbf{992.5 GFLOPS} because 67 out of 68 SMs are idle.
+    \item Split-K distributes the reduction loop across 64 threadblocks, saturating nearly all SMs and achieving \textbf{4794.2 GFLOPS}—a \textbf{4.83x empirical speedup} over standard 2D tiling on the exact same problem dimensions.
+    \item While the secondary reduction phase introduces a modest memory-write overhead, the dramatic increase in SM wave quantization and thread-level concurrency vastly outweighs the reduction cost on skinny shapes.
+\end{itemize}
+
+\subsection{Mixed-Precision and Quantized GEMM (INT8 / DP4A)}
+For inference workloads, full FP32 precision is frequently unnecessary.
+\begin{itemize}
+    \item \textbf{Pascal DP4A:} On sm\_61, the \texttt{\_\_dp4a} intrinsic performs a 4-element 8-bit integer dot product with 32-bit accumulation in a single instruction, effectively delivering 4x the theoretical arithmetic throughput of standard FP32 instructions.
+    \item \textbf{Turing Tensor Cores:} Turing provides hardware INT8/INT4 Tensor Cores alongside FP16 WMMA, delivering over 200 TOPS of compute. Moving to lower precisions shifts memory bandwidth bottlenecks, allowing memory-bound regimes to achieve much higher effective compute efficiency.
+\end{itemize}
+
+\section{Comparison with Simon Boehm's Guide}
+
+My optimization trajectory closely followed the architectural stages outlined in Simon Boehm's widely cited guide (\textit{How to Optimize a CUDA Matmul Kernel for cuBLAS-like Performance}):
+\begin{itemize}
+    \item \textbf{Consistent Milestones:} Like Boehm, I observed the largest relative leap at K2 $\rightarrow$ K3 (1D block tiling), jumping by 5.0x over K0 on Pascal and 2.8x on Turing. Transitioning data reuse from shared memory into thread-private registers drastically alleviated memory bus pressure.
+    \item \textbf{Vectorized Loading (K5):} Boehm noted that \texttt{float4} vectorization was essential to reach peak bandwidth saturation. My results confirmed this on Turing (reaching 51.0\% of FP32 peak, 6856 GFLOPS), but also exposed the 16-byte alignment trap on non-multiple-of-4 matrix pitches ($K=3001$) that Boehm's square-power-of-two tests did not encounter.
+    \item \textbf{Deviations on Double Buffering (K7):} In Boehm's setup, double buffering provided a consistent incremental speedup. In my benchmarks, K7 actually regressed compared to K5 on both Pascal (4132 vs 4971 GFLOPS) and Turing (5927 vs 6856 GFLOPS). On Pascal, doubling shared memory to 32 KB cut SM residency to a single block (12.5\% occupancy), starving the warp scheduler during stalls. On Turing, compiler register allocation added stack frame spilling (64 bytes stack per thread in \texttt{ptxas}), showing that without Ampere-style asynchronous copy instructions (\texttt{cp.async}), software double buffering can harm performance if register or shared memory pressure is exceeded.
+\end{itemize}
+
+\section{Conclusion}
+
+Through this progression from naive matrix multiplication to hardware Tensor Cores, four key takeaways stand out:
+\begin{enumerate}
+    \item \textbf{Memory hierarchy dominates:} Memory coalescing alone (K1) produces minimal benefit if global loads still occur at an $\mathcal{O}(N^3)$ rate. True acceleration only begins when global memory accesses are cut by staging data into shared memory (K2) and registers (K4).
+    \item \textbf{Occupancy vs. ILP trade-off:} Maximizing occupancy does not maximize performance. High occupancy in K0/K2 merely resulted in warps spending 99\% of their time waiting on memory. Reducing occupancy to 25--50\% in K4/K5 unlocked 8x to 12x higher throughput because each thread had sufficient independent math instructions to keep arithmetic pipelines saturated.
+    \item \textbf{Shared memory bank conflicts matter:} Sizing thread tiles ($TN=8$ vs $TN=4$) can silently cut shared memory bandwidth in half due to 32-bank modulo stride collisions, as confirmed by 8.38M bank conflicts in Nsight Compute profiling.
+    \item \textbf{Microarchitecture dictates optimal tiling:} Dedicated integer ALUs on Turing eliminated address calculation bottlenecks that constrained Pascal. Furthermore, while Tensor Cores offer astronomical theoretical throughput (107.6 TFLOPS), they require sophisticated shared memory staging to prevent global memory starvation.
 \end{enumerate}
 
 \end{document}
