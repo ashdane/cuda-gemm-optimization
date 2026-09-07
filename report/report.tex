@@ -366,9 +366,10 @@ The manual kernel implementations (e.g., K5, K7) assume strict dimensions corres
 
 \section{Hardware Profiling Analysis}
 
-\textbf{\textit{Disclaimer: Due to cluster administration restrictions prohibiting direct hardware counter access via \texttt{ncu} and \texttt{nsys}, the occupancy, register pressure, and bandwidth metrics presented in this section are theoretical bounds calculated using the CUDA occupancy formula and static analysis of memory access patterns, not empirical runtime measurements.}}
+\textbf{\textit{Methodological Structure: Because non-root access to hardware performance counter registers via \texttt{ncu} was restricted on the Ada cluster by the driver flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1} (\texttt{ERR\_NVGPUCTRPERM}), our profiling methodology combines three complementary tiers of evidence: (1) theoretical register pressure and occupancy bounds calculated via the CUDA Occupancy formula and static PTX analysis (§\ref{sec:occupancy}), (2) empirical execution timelines and CUDA API runtime overheads captured on the RTX 2080 Ti via NVIDIA Nsight Systems (\texttt{profiling/*.nsys-rep}, §\ref{sec:nsys}), and (3) physical hardware performance counter verification executed under root privileges on a Turing architecture GPU via NVIDIA Nsight Compute (\texttt{colab\_profiling/*.ncu-rep}, §\ref{sec:ncu}) alongside first-principles spatial stride modeling.}}
 
 \subsection{Register Pressure and Occupancy}
+\label{sec:occupancy}
 
 \begin{table}[htbp]
 \centering
@@ -392,6 +393,7 @@ K7 DblBuf     & 112 & 32768 B & 256  & 1 & 12.5\%  & 2 & 50.0\%  & Smem(P) / Reg
 High register pressure limits K4's theoretical occupancy to $\sim$25\%. However, increased ILP via 64 FMAs per synchronization barrier compensates for the low active warp count. In contrast, doubling the shared memory requirements in K7 reduces active warps significantly on Pascal architectures, causing overall performance to regress when compared to K5. 
 
 \subsection{Empirical Timeline and API Profiling (Nsight Systems)}
+\label{sec:nsys}
 
 To validate the timing of our custom CUDA event harness against low-level runtime execution, we captured and parsed binary traces using NVIDIA Nsight Systems (\texttt{nsys}) on Turing ($M=N=K=1024$). Table \ref{tab:nsys_summary} reports the exact GPU execution durations and CUDA runtime API overheads extracted directly from the exported trace SQLite databases (\texttt{profiling/*.nsys-rep}).
 
@@ -459,6 +461,7 @@ If two or more threads within the same warp request distinct addresses mapping t
 \end{itemize}
 
 \subsection{Empirical Hardware Counter Verification (Nsight Compute)}
+\label{sec:ncu}
 
 To definitively substantiate the first-principles analytical models, we collected direct hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). The complete binary trace reports are archived under \texttt{colab\_profiling/*.ncu-rep}. Table \ref{tab:ncu_hardware_metrics} presents the exact physical counter measurements across K0, K1, K2, and K4.
 
