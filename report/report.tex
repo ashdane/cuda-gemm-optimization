@@ -133,7 +133,7 @@ Primary timing is conducted via CUDA event pairs (\texttt{cudaEventRecord} and \
 Every kernel is validated against \texttt{cublasSgemm} for dimensions up to $256^3$. The maximum absolute error observed is $1\times10^{-2}$ for FP32 and $5\times10^{-1}$ for FP16 TC kernels. 
 
 \paragraph{Profiler Access and Instrumentation:}
-Runtime execution timelines and API overheads on the Ada cluster are empirically measured using \textbf{NVIDIA Nsight Systems (\texttt{nsys})}, producing complete execution traces (\texttt{profiling/*.nsys-rep}) and SQLite profiles for kernel latency, stream synchronization, and memory copy overheads. Because fine-grained hardware performance registers via \textbf{NVIDIA Nsight Compute (\texttt{ncu})} were blocked on the shared cluster by the non-root restriction flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1} (\texttt{ERR\_NVGPUCTRPERM}), we executed root-level Nsight Compute runs on a Turing-architecture NVIDIA Tesla T4 GPU (sm\_75) with binary reports saved in \texttt{colab\_profiling/*.ncu-rep}. This provides direct, hardware-level physical counter verification (exact L1 sector counts, L1 cache hit rates, shared memory bank conflict cycles, and warp active percentages) directly confirming our analytical models.
+Runtime execution timelines and API overheads on the Ada cluster are empirically measured using \textbf{NVIDIA Nsight Systems (\texttt{nsys})}, producing complete execution traces (\texttt{profiling/*.nsys-rep}) and SQLite profiles for kernel latency, stream synchronization, and memory copy overheads. Because fine-grained hardware performance registers via \textbf{NVIDIA Nsight Compute (\texttt{ncu})} were blocked on the shared cluster by the non-root restriction flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1} (\texttt{ERR\_NVGPUCTRPERM}), we executed root-level Nsight Compute runs on a Turing-architecture NVIDIA Tesla T4 GPU (sm\_75) with binary reports saved in \texttt{colab\_profiling/*.ncu-rep}. This provides direct, physical counter evidence (exact L1 sector counts, L1 cache hit rates, shared memory bank conflict cycles, and warp active percentages) that strongly corroborates our theoretical access models on matching sm\_75 hardware.
 
 \section{Kernel Progression}
 
@@ -284,7 +284,7 @@ Threads/block & 256 & 256 & Manageable block count, 8 warps for latency hiding \
 
 \subsection{Parameter Sensitivity Analysis}
 
-To systematically investigate microarchitectural performance cliffs, we executed an exhaustive empirical sweep across the block-tile ($BM, BN$), K-depth ($BK$), and thread-tile ($TM, TN$) hyperparameter grid on the Turing RTX 2080 Ti ($M=N=K=4096$, 50 iterations per point, recorded in \texttt{results/param\_sweep\_NVIDIA\_GeForce\_RTX\_2080\_Ti\_20260907\_153954.csv}).
+To systematically investigate microarchitectural performance cliffs, we executed an exhaustive empirical sweep across the block-tile ($BM, BN$), K-depth ($BK$), and thread-tile ($TM, TN$) hyperparameter grid on the Turing RTX 2080 Ti ($M=N=K=4096$, 50 iterations per point, recorded in \texttt{results/param\_sweep\_NVIDIA\_GeForce\_RTX\_2080\_Ti\_20260907\_153954.csv}).\footnote{In the automated sweep harness, compiling the complete benchmark binary emitted composite \texttt{ptxas} outputs across all defined entrypoints, where automated regex parsing captured the tail helper kernel (10 registers). For standalone static analysis in Table \ref{tab:occupancy}, K4 compiles to 96 registers on Pascal and 94 registers on Turing.}
 
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{The $TN$ Bank Conflict Cliff}: Across all tile configurations with $BK=16$, doubling thread tile width from $TN=4$ to $TN=8$ precipitates a sharp, non-linear performance collapse. For example:
@@ -463,7 +463,7 @@ If two or more threads within the same warp request distinct addresses mapping t
 \subsection{Empirical Hardware Counter Verification (Nsight Compute)}
 \label{sec:ncu}
 
-To definitively substantiate the first-principles analytical models, we collected direct hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). The complete binary trace reports are archived under \texttt{colab\_profiling/*.ncu-rep}. 
+To empirically corroborate our first-principles analytical models with physical counter data, we collected hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). The complete binary trace reports are archived under \texttt{colab\_profiling/*.ncu-rep}. 
 
 \textit{Coverage Scope and Architectural Correspondence}: K0, K1, K2, and K4 were deliberately targeted because they embody the defining memory transformations of GEMM optimization: uncoalesced global DRAM reads (K0), coalesced DRAM access (K1), shared memory block caching (K2), and 2D register tiling with bank conflicts (K4). Kernels K5--K7 represent vectorization, warptiling, and pipelining refinements built directly atop the K4 register-tile foundation. Crucially, the Tesla T4 shares the exact same Turing (sm\_75) microarchitecture as the RTX 2080 Ti, including an identical 32-bank, 4-byte-wide shared memory crossbar, 32-byte L1 cache sector size, and dual INT32/FP32 pipelines, ensuring that the physical counter behaviors map directly to the Turing test node.
 
@@ -497,9 +497,19 @@ The physical counter data validates our theoretical analysis with remarkable cla
 
 \section{Discussion}
 
-\subsection{Alternative Processing Paths}
+\subsection{Alternative Algorithmic Formulations: Strassen and Mixed-Precision}
 
-While cuBLAS serves as the baseline target, the tensor core optimization path diverges significantly. The manual WMMA approach achieved 6.7 TFLOPS (roughly 6.3\% of the true TC peak) due to fragment loads fetching directly from global memory. By staging intermediate fragment data through shared memory to sustain throughput, the cuBLAS FP16 implementation scales efficiently up to 34.2 TFLOPS. 
+Beyond classical $O(N^3)$ block-tiling and hardware-accelerated WMMA, alternative algorithmic strategies offer distinct theoretical trade-offs:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Sub-Cubic Fast Matrix Multiplication (Strassen's Algorithm)}: Strassen's formulation decomposes an $N \times N$ matrix into 7 sub-matrix products (rather than 8), yielding asymptotic complexity $O(N^{\log_2 7}) \approx O(N^{2.807})$. On modern GPU architectures, however, Strassen faces severe practical headwinds:
+  \begin{enumerate}
+    \item \textit{Temporary Buffer Allocation}: Recursive 7-way splitting requires substantial auxiliary global memory workspace ($O(N^2)$ extra footprint) and repetitive matrix additions/subtractions that are strictly bandwidth-bound ($AI \approx 0.5$ FLOP/byte).
+    \item \textit{Arithmetic Intensity vs. Hardware Balance}: As established in our roofline analysis (§\ref{sec:roofline}), modern GPUs require high arithmetic intensity ($AI > 21.8$ FLOP/byte on Turing) to saturate compute pipelines. The additional matrix additions in Strassen dilute arithmetic intensity, causing memory bandwidth bottlenecks that cancel theoretical FLOP savings until matrix dimensions exceed $N > 8192$.
+    \item \textit{Numerical Stability}: Strassen suffers from higher error bounds ($\| \hat{C} - C \| \le c \cdot u \cdot \|A\| \|B\|$) compared to standard GEMM, requiring careful dynamic range scaling.
+  \end{enumerate}
+  \item \textbf{Mixed-Precision and Quantized GEMM}: Transitioning from FP32 to mixed-precision formats (BF16, FP16, and INT8 via DP4A) fundamentally shifts the hardware roofline. Turing integrates dedicated INT8 tensor cores and DP4A vector instructions yielding 4$\times$ higher arithmetic throughput. By accumulating low-precision products into FP32 accumulators, dynamic range is preserved while memory footprint and cache traffic are reduced by 50--75\%, doubling effective bandwidth utilization.
+  \item \textbf{Split-K Decomposition for Skinny GEMM}: When $K \gg M, N$ (e.g., $256 \times 256 \times 16384$, where K7 achieved only 350.1 GFLOPS), grid generation creates too few thread blocks to populate all 68 SMs on Turing (only 4 blocks for $128 \times 128$ tiling). Split-K algorithms partition the reduction dimension across multiple thread blocks, computing partial GEMMs concurrently and accumulating results via an atomic reduction kernel. Our profiling trace (Table \ref{tab:ncu_hardware_metrics}) confirms that cuBLAS transparently dispatches \texttt{splitKreduce\_kernel} for these shapes, sustaining high occupancy.
+\end{itemize}
 
 \subsection{Small Scale Computation Thresholds}
 
@@ -520,5 +530,16 @@ $128^3$ & 0.018 & 0.013 & \textbf{cuBLAS} & Block scheduling and memory reuse do
 \end{table}
 
 For matrix dimensions below $128^3$, architectural overhead limits performance scaling. Standardized libraries evaluate dynamic fallback routines, load hardware configurations, and execute runtime branching logic. At extremely small problem sizes, the static structure of the naive kernel bypasses these penalties, creating an inflection point where simplistic instruction execution outpaces algorithmically complex tile staging.
+
+\section{Conclusion and Architectural Guidelines}
+
+This study systematically evaluated the progression of single-precision GEMM optimizations across Pascal (GTX 1080 Ti) and Turing (RTX 2080 Ti) architectures, combining empirical execution measurements with physical Nsight Compute and Nsight Systems profiling traces. Our key findings synthesize into concrete GPU kernel engineering principles:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Memory Hierarchy Staging Dictates Realized Arithmetic Intensity}: Uncoalesced global memory loads in the naive baseline achieve only 12.5\% transaction efficiency. Vectorized shared memory staging (K5) compresses global DRAM transactions by 53.7$\times$ and elevates throughput from 581.5 GFLOPS to 6856.2 GFLOPS, bridging 51\% of the theoretical hardware peak.
+  \item \textbf{Beware the Bank Conflict Cliff}: While high register tiling ($TM=8, TN=8$) maximizes theoretical arithmetic reuse, expanding thread tile width to $TN=8$ triggers catastrophic 2-way bank conflicts (8,388,608 conflicts measured via \texttt{ncu}), halving shared memory bandwidth and plunging performance by up to 50.5\%. Staggering thread tile strides or keeping $TN=4$ avoids this performance cliff.
+  \item \textbf{Instruction-Level Parallelism Trumps Occupancy}: Maximizing theoretical warp occupancy does not maximize throughput. High-occupancy kernels (K0, K2 with $\ge 98\%$ active warps) stall continuously on memory latencies. In contrast, 2D register tiling operating at 25--50\% occupancy achieves peak performance by exposing sufficient independent instructions (64 FMAs per thread iteration) to fully saturate dual-issue pipelines.
+  \item \textbf{Microarchitectural Evolution Favors Unrolled Computation}: Turing's decoupled INT32 and FP32 execution datapaths permit simultaneous address calculations and arithmetic dispatch, allowing deeply unrolled GEMM kernels to execute loop indices without stalling floating-point math pipelines—delivering an empirical 1.4--1.7$\times$ efficiency gain over Pascal.
+\end{enumerate}
 
 \end{document}
