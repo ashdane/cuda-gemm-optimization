@@ -256,10 +256,10 @@ double buffering  & 4132.6 & 5927.7  & 1.43 & 36.4\% & 44.1\% & +7.6 pp \\
 \caption{Efficiency improvements between Pascal and Turing architectures.}
 \end{table}
 
-Performance scales more effectively on Turing across heavily interleaved instruction streams. Microarchitecturally, this divergence stems from the fundamental pipeline reorganization between Pascal and Turing:
+Performance scales more effectively on Turing across heavily interleaved instruction streams. Microarchitecturally, this divergence stems from the fundamental pipeline reorganization between Pascal and Turing (as documented in the NVIDIA Turing Architecture Whitepaper and Turing Tuning Guide):
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{Pascal (sm\_61) Shared Datapaths}: The Pascal SM features unified execution datapaths where integer arithmetic and floating-point operations contend for the same dispatch ports. Address generation math (e.g., computing multi-dimensional matrix strides $row \cdot K + col$ and pointer offsets via \texttt{IMAD}/\texttt{LEA}) cannot issue concurrently with floating-point multiply-accumulate (\texttt{FFMA}) instructions. The warp scheduler must sequentially alternate between address calculation and arithmetic, stalling the FP32 pipeline.
-  \item \textbf{Turing (sm\_75) Independent Concurrent Pipelines}: In the Turing microarchitecture, each SM sub-core integrates dedicated, independent INT32 and FP32 execution datapaths. Turing can dual-issue and execute an integer address instruction and a floating-point \texttt{FFMA} in the exact same clock cycle. In deeply unrolled GEMM kernels (K4--K7), compiler-generated address index increments and pointer arithmetic are executed entirely in parallel with the math pipeline, effectively eliminating loop overhead and achieving an empirical 1.4--1.7$\times$ throughput gain over Pascal.
+  \item \textbf{Turing (sm\_75) Independent Concurrent Pipelines}: In the Turing microarchitecture, each SM sub-core integrates dedicated, independent INT32 and FP32 execution datapaths. Turing can dual-issue and execute an integer address instruction and a floating-point \texttt{FFMA} in the exact same clock cycle. In deeply unrolled GEMM kernels (K4--K7), static inspection of compiled PTX and SASS confirms that inner accumulation loops generate concurrent pairs of \texttt{LEA}/\texttt{IADD3} pointer calculations alongside \texttt{FFMA} instructions. Because integer index increments execute concurrently on the INT datapath rather than interleaving on the FP pipe, pipeline stalls are eliminated, yielding the observed empirical 1.4--1.7$\times$ efficiency gain over Pascal.
 \end{itemize} 
 
 \subsection{Optimal Tile Configuration}
@@ -463,7 +463,11 @@ If two or more threads within the same warp request distinct addresses mapping t
 \subsection{Empirical Hardware Counter Verification (Nsight Compute)}
 \label{sec:ncu}
 
-To definitively substantiate the first-principles analytical models, we collected direct hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). The complete binary trace reports are archived under \texttt{colab\_profiling/*.ncu-rep}. Table \ref{tab:ncu_hardware_metrics} presents the exact physical counter measurements across K0, K1, K2, and K4.
+To definitively substantiate the first-principles analytical models, we collected direct hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). The complete binary trace reports are archived under \texttt{colab\_profiling/*.ncu-rep}. 
+
+\textit{Coverage Scope and Architectural Correspondence}: K0, K1, K2, and K4 were deliberately targeted because they embody the defining memory transformations of GEMM optimization: uncoalesced global DRAM reads (K0), coalesced DRAM access (K1), shared memory block caching (K2), and 2D register tiling with bank conflicts (K4). Kernels K5--K7 represent vectorization, warptiling, and pipelining refinements built directly atop the K4 register-tile foundation. Crucially, the Tesla T4 shares the exact same Turing (sm\_75) microarchitecture as the RTX 2080 Ti, including an identical 32-bank, 4-byte-wide shared memory crossbar, 32-byte L1 cache sector size, and dual INT32/FP32 pipelines, ensuring that the physical counter behaviors map directly to the Turing test node.
+
+Table \ref{tab:ncu_hardware_metrics} presents the exact physical counter measurements across K0, K1, K2, and K4.
 
 \begin{table}[htbp]
 \centering
