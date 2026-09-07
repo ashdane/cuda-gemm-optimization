@@ -113,7 +113,7 @@ cuBLAS FP16 TC & 34233.2 $\pm$ 5113.2 & 4.01 $\pm$ 0.81 & 31.8\%* & 22.2x & N/A 
 
 *Note on Tensor Core baseline: NVIDIA's FP32 CUDA core peak is 13,450 GFLOPS (13.45 TFLOPS). However, the RTX 2080 Ti contains 544 Tensor Cores (68 SMs $\times$ 8 TCs/SM), each executing 64 FMA ops (128 FLOPs) per cycle. At a boost clock of 1.545 GHz, the theoretical FP16 Tensor Core ceiling is $544 \times 128 \times 1.545 \approx 107{,}600$ GFLOPS (107.6 TFLOPS). Comparing cuBLAS FP16 TC (34,233 GFLOPS) against this true 107.6 TFLOPS Tensor Core ceiling yields 31.8\% efficiency (not 254\% against the FP32 core peak).
 
-Note on K6 (Warptile) and automated sweeps: In the progression benchmark (Table 3), K6 was run with its canonical configuration ($BM=128, BN=128, BK=16, WM=64, WN=32, TM=16, TN=4$, 256 threads/block), yielding $3,515.8 \pm 356.9$ GFLOPS. Later, in the full 144-run automated parameter sweep over tile dimensions (detailed in §4.1), I observed that configurations with larger thread blocks (e.g. 512–1024 threads/block with $TM=4, TN=4$) produced GFLOPS readings over 17,000 in the CSV. Investigating those configurations revealed that with 1024 threads/block, the warptile kernel experienced index clamp overflows in validation ($max\_abs\_err > 5.0$), which artificially truncated inner-loop execution. The canonical K6 implementation achieving valid results is the $3515.8$ GFLOPS reported above.
+Note on K6 (Warptile) and automated sweeps: In the progression benchmark (Table 3), K6 was run with its canonical configuration ($BM=128, BN=128, BK=16, WM=64, WN=32, TM=16, TN=4$, 256 threads/block), yielding $3,515.8 \pm 356.9$ GFLOPS. Later, in the 144-run parameter sweep (detailed in §4.1), configurations with $\ge 512$ threads/block (e.g. 1024 threads with $TM=4, TN=4$) produced physically impossible GFLOPS readings over 17,000 in the CSV. Rather than a silent truncation, this is hypothesized to be a profiling artifact caused by an out-of-bounds memory access: assigning too many warps to a fixed $128 \times 128$ tile pushes thread indices beyond the allocated bounds. As seen elsewhere in this report, such OOB access triggers a \texttt{cudaErrorIllegalAddress}. If the benchmarking wrapper fails to properly synchronize and catch the fault, the asynchronous \texttt{cudaEventRecord} resolves almost instantly (measuring only launch overhead), which the script blindly calculates as $>17,000$ GFLOPS. The canonical K6 implementation achieving valid results is the $3515.8$ GFLOPS reported above.
 
 \begin{figure}[h]
 \centering
@@ -352,30 +352,18 @@ For matrices under $128^3$, naive was actually faster than cuBLAS. cuBLAS has la
 
 \section{Alternative Algorithmic Approaches}
 
-Beyond standard dense tiled GEMM, several alternative algorithmic formulations exist for matrix multiplication, each with distinct trade-offs on modern GPU hardware:
+Beyond standard dense tiled GEMM, the assignment encouraged experimenting with alternative ways to multiply matrices. Since theoretical sub-cubic algorithms like Strassen perform poorly on GPUs due to $\mathcal{O}(N^2)$ memory allocation bandwidth overheads, I focused my empirical alternative experimentation on hardware-accelerated mixed-precision math.
 
-\subsection{Strassen's Algorithm}
-Strassen's sub-cubic algorithm reduces arithmetic complexity from $\mathcal{O}(N^3)$ to $\mathcal{O}(N^{2.807})$ by computing 7 sub-matrix multiplications instead of 8. While theoretically faster for large $N$, it faces steep practical limitations on GPUs:
+\subsection{Mixed-Precision GEMM via Tensor Cores (Empirical)}
+To test an alternative mathematical formulation of GEMM, I implemented \textbf{Kernel 8 (K8)}, which abandons standard CUDA core fused multiply-adds (FMA) in favor of the Warp Matrix Multiply and Accumulate (WMMA) API. This algorithm computes $16 \times 16 \times 16$ block matrix multiplications natively in hardware.
+
 \begin{itemize}
-    \item \textbf{Memory Footprint and Buffer Allocation:} The 7 recursive multiplications require allocating auxiliary intermediate matrices for sub-matrix additions and subtractions ($\mathcal{O}(N^2)$ extra device memory). Frequent buffer allocations or ping-pong buffering destroy cache locality.
-    \item \textbf{Diluted Arithmetic Intensity:} Matrix additions/subtractions have an arithmetic intensity of $\approx 0.5$ FLOP/byte, making them intensely memory-bandwidth bound. On GPUs like Turing where arithmetic throughput is huge compared to DRAM bandwidth, the extra memory passes wipe out the arithmetic savings until $N > 16{,}384$.
-    \item \textbf{Numerical Stability:} Strassen's algorithm exhibits looser numerical error bounds compared to standard accumulator dot products, which can cause precision issues in single precision.
+    \item \textbf{Implementation Details:} The \texttt{08\_tensor\_core\_wmma.cu} kernel casts the FP32 input arrays into FP16 precision using \texttt{\_\_float2half}, streams them into \texttt{wmma::fragment} registers, and accumulates the result in FP32. This represents a fundamental shift from scalar threaded math to warp-level hardware matrix math.
+    \item \textbf{Empirical Performance:} As shown in Table 3, the alternative K8 Tensor Core approach achieved \textbf{6779.5 GFLOPS} at $4096^3$. While this is $4.4\times$ faster than the naive baseline, it fell drastically short of the peak 107.6 TFLOPS Tensor Core ceiling (reaching only 6.3\% efficiency). 
+    \item \textbf{Architectural Takeaway:} The profiling confirms that simply switching to an alternative Tensor Core algorithm is insufficient without an equally advanced memory hierarchy strategy. Without the complex shared memory staging and asynchronous data prefetching utilized by cuBLAS (which achieved 34,233 GFLOPS using Tensor Cores), the sheer arithmetic throughput of the WMMA pipeline instantly starves the L1 cache, shifting the algorithm from compute-bound back to severely memory-bound.
 \end{itemize}
 
-\subsection{Mixed-Precision and Quantized GEMM (INT8 / DP4A)}
-For inference workloads, full FP32 precision is frequently unnecessary. Quantized INT8 arithmetic provides substantial throughput multipliers:
-\begin{itemize}
-    \item \textbf{Pascal DP4A Arithmetic Derivation:} On sm\_61 (GTX 1080 Ti, 3584 CUDA cores across 28 SMs at 1.582 GHz boost clock), the \texttt{\_\_dp4a} intrinsic executes a 4-element 8-bit integer dot product with 32-bit accumulation in a single clock cycle across vector integer pipelines. Each DP4A instruction evaluates 4 multiply-accumulate operations (8 integer operations per cycle per core):
-    \begin{equation}
-        \text{Peak DP4A TOPS} = 3584 \text{ cores} \times 8 \frac{\text{INT8 ops}}{\text{cycle}\cdot\text{core}} \times 1.582 \text{ GHz} = 45.39 \text{ TOPS (sm\_61)}
-    \end{equation}
-    This provides an exact \textbf{4.0x} theoretical throughput advantage over standard FP32 fused multiply-add ($3584 \times 2 \times 1.582 = 11.34 \text{ TFLOPS}$).
-    \item \textbf{Turing INT8 Tensor Core Derivation:} Turing (sm\_75, RTX 2080 Ti) integrates dedicated second-generation Tensor Cores with native INT8 and INT4 execution. With 68 SMs and 8 Tensor Cores per SM (544 Tensor Cores total), each Tensor Core evaluates 256 INT8 operations per clock cycle (128 INT8 MACs). At a boost frequency of 1.545 GHz, the theoretical peak throughput is derived as:
-    \begin{equation}
-        \text{Peak Turing INT8} = 68 \text{ SMs} \times 8 \frac{\text{TC}}{\text{SM}} \times 256 \frac{\text{INT8 ops}}{\text{cycle}\cdot\text{TC}} \times 1.545 \text{ GHz} = 215.16 \text{ TOPS}
-    \end{equation}
-    This represents a \textbf{16.0x} arithmetic scaling factor over the GPU's native FP32 peak (13.45 TFLOPS). Beyond raw compute, INT8 reduces global memory traffic by 4x relative to FP32, dramatically shifting the roofline ridge point to the left and enabling memory-bound small-tile GEMMs to achieve near-peak compute saturation.
-\end{itemize}
+While I originally investigated theoretical limits for INT8/DP4A quantized execution and Strassen's algorithm, I restricted the reported analysis here strictly to the WMMA Tensor Core approach, as it is the only alternative algorithmic pipeline I could rigorously test and profile natively on the Turing hardware.
 
 \section{Comparison with Simon Boehm's Guide}
 
