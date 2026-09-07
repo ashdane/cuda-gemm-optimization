@@ -1,4 +1,5 @@
 # CUDA GEMM Kernel Optimization: An Empirical Architecture Study
+**Author:** Daniel Ashish Abraham (Roll No: 2025121010)  
 ### Ada HPC Cluster — Pascal (GTX 1080 Ti) × Turing (RTX 2080 Ti)
 
 > **Reproducibility note**: Every numeric result in this report is
