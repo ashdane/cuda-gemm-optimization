@@ -445,6 +445,7 @@ pipeline stalls, warp divergence), not memory bandwidth.
 > **Platform**: NVIDIA Tesla T4 (Turing, sm_75, Compute Capability 7.5, driver with root access).
 > **Profiler**: NVIDIA Nsight Compute (`ncu`) command-line profiler.
 > **Workload**: $M=N=K=1024$, 3 profiling passes per kernel.
+> **Artifacts**: Stored directly in `colab_profiling/` (`k00_naive.ncu-rep`, `k01_coalesced.ncu-rep`, `k02_smem.ncu-rep`, `k04_2d_tile.ncu-rep`).
 
 | Hardware Metric | Metric Unit | K0 Naive | K1 Coalesced | K2 Smem Tiling | K4 2D Blocktile | cuBLAS Reference |
 |---|---|---|---|---|---|---|

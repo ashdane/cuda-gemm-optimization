@@ -133,7 +133,7 @@ Primary timing is conducted via CUDA event pairs (\texttt{cudaEventRecord} and \
 Every kernel is validated against \texttt{cublasSgemm} for dimensions up to $256^3$. The maximum absolute error observed is $1\times10^{-2}$ for FP32 and $5\times10^{-1}$ for FP16 TC kernels. 
 
 \paragraph{Profiler Access and Instrumentation:}
-Runtime execution timelines and API overheads on the Ada cluster are empirically measured using \textbf{NVIDIA Nsight Systems (\texttt{nsys})}, producing complete execution traces (\texttt{*.nsys-rep}) and SQLite profiles for kernel latency, stream synchronization, and memory copy overheads. Because fine-grained hardware performance registers via \textbf{NVIDIA Nsight Compute (\texttt{ncu})} were blocked on the shared cluster by the non-root restriction flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1} (\texttt{ERR\_NVGPUCTRPERM}), we executed root-level Nsight Compute runs on a Turing-architecture NVIDIA Tesla T4 GPU (sm\_75). This provides direct, hardware-level physical counter verification (exact L1 sector counts, L1 cache hit rates, shared memory bank conflict cycles, and warp active percentages) directly confirming our analytical models.
+Runtime execution timelines and API overheads on the Ada cluster are empirically measured using \textbf{NVIDIA Nsight Systems (\texttt{nsys})}, producing complete execution traces (\texttt{profiling/*.nsys-rep}) and SQLite profiles for kernel latency, stream synchronization, and memory copy overheads. Because fine-grained hardware performance registers via \textbf{NVIDIA Nsight Compute (\texttt{ncu})} were blocked on the shared cluster by the non-root restriction flag \texttt{NVreg\_RestrictProfilingToAdminUsers=1} (\texttt{ERR\_NVGPUCTRPERM}), we executed root-level Nsight Compute runs on a Turing-architecture NVIDIA Tesla T4 GPU (sm\_75) with binary reports saved in \texttt{colab\_profiling/*.ncu-rep}. This provides direct, hardware-level physical counter verification (exact L1 sector counts, L1 cache hit rates, shared memory bank conflict cycles, and warp active percentages) directly confirming our analytical models.
 
 \section{Kernel Progression}
 
@@ -460,7 +460,7 @@ If two or more threads within the same warp request distinct addresses mapping t
 
 \subsection{Empirical Hardware Counter Verification (Nsight Compute)}
 
-To definitively substantiate the first-principles analytical models, we collected direct hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). Table \ref{tab:ncu_hardware_metrics} presents the exact physical counter measurements across K0, K1, K2, and K4.
+To definitively substantiate the first-principles analytical models, we collected direct hardware performance counters on a Turing GPU (Tesla T4, sm\_75, CC 7.5, $M=N=K=1024$) using NVIDIA Nsight Compute (\texttt{ncu}). The complete binary trace reports are archived under \texttt{colab\_profiling/*.ncu-rep}. Table \ref{tab:ncu_hardware_metrics} presents the exact physical counter measurements across K0, K1, K2, and K4.
 
 \begin{table}[htbp]
 \centering
