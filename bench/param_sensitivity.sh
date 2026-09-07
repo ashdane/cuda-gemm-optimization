@@ -95,8 +95,11 @@ compile_and_bench() {
     local BM=$3 BN=$4 BK=$5 TM=$6 TN=$7
     local threads_per_block=$(( (BM / TM) * (BN / TN) ))
 
-    # Validate: threads must be ≤ 1024
+    # Validate: threads must be within hardware limits and sufficient for cooperative loading strides
     if [ "$threads_per_block" -gt 1024 ] || [ "$threads_per_block" -lt 32 ]; then
+        return
+    fi
+    if [ "$threads_per_block" -lt "$BK" ] || [ "$threads_per_block" -lt "$BN" ]; then
         return
     fi
 
@@ -127,6 +130,8 @@ compile_and_bench() {
         "${KERNEL_DIR}/04_2d_blocktile.cu" \
         "${KERNEL_DIR}/05_vectorized.cu" \
         "${KERNEL_DIR}/06_warptiling.cu" \
+        "${KERNEL_DIR}/07_double_buffering.cu" \
+        "${KERNEL_DIR}/08_tensor_core_wmma.cu" \
         2>"$ptxas_log" || {
             echo "  Compilation failed for BM=$BM BN=$BN BK=$BK TM=$TM TN=$TN"
             return

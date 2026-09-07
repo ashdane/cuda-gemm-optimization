@@ -1,12 +1,26 @@
 #include "common.cuh"
 
+#ifndef BM
 #define BM 128
+#endif
+#ifndef BN
 #define BN 128
+#endif
+#ifndef BK
 #define BK 16
-#define WM 64     
-#define WN 32     
-#define TM 8      
-#define TN 4      
+#endif
+#ifndef WM
+#define WM 64
+#endif
+#ifndef WN
+#define WN 32
+#endif
+#ifndef TM
+#define TM 16
+#endif
+#ifndef TN
+#define TN 4
+#endif
 #define WARP_SIZE 32
 
 __global__ void sgemm_warptile(int M, int N, int K, float alpha, const float* __restrict__ A, const float* __restrict__ B, float beta, float* __restrict__ C) {

@@ -1,10 +1,20 @@
 #include "common.cuh"
 
-#define BM 128   
-#define BN 128   
-#define BK 8     
-#define TM 8     
-#define TN 8     
+#ifndef BM
+#define BM 128
+#endif
+#ifndef BN
+#define BN 128
+#endif
+#ifndef BK
+#define BK 8
+#endif
+#ifndef TM
+#define TM 8
+#endif
+#ifndef TN
+#define TN 8
+#endif     
 
 __global__ void sgemm_2d_blocktile(int M, int N, int K, float alpha, const float* __restrict__ A, const float* __restrict__ B, float beta, float* __restrict__ C) {
   __shared__ float As[BM * BK];

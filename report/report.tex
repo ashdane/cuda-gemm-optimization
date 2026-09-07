@@ -213,6 +213,7 @@ smem tiling        & 2115.5  & 2099.0--2130.6   & 15.7\%             & 1.4$\time
 1D blocktile       & 4356.7  & 4322.6--4389.7   & 32.4\%             & 2.8$\times$  & 1.5$\times$ \\
 2D blocktile       & 6557.1  & 6505.5--6602.1   & 48.8\%             & 4.2$\times$  & 1.7$\times$ \\
 vectorized         & 6856.2  & 6790.2--6902.7   & 51.0\%             & 4.4$\times$  & 1.4$\times$ \\
+warptile (K6)      & 3515.8  & 3485.1--3522.6   & 26.1\%             & 2.3$\times$  & Turing measured \\
 double buffering   & 5927.7  & 5854.7--5975.4   & 44.1\%             & 3.8$\times$  & 1.4$\times$ \\
 \rowcolor{accentlight} cuBLAS SGEMM & 12939.8 & 12815.3--13165.1 & 96.2\% & 8.4$\times$ & 1.5$\times$ \\
 tensor core WMMA   & 6779.5  & 6711.9--6795.8   & 6.3\% of TC peak   & 4.4$\times$  & Turing only \\
@@ -252,7 +253,11 @@ double buffering  & 4132.6 & 5927.7  & 1.43 & 36.4\% & 44.1\% & +7.6 pp \\
 \caption{Efficiency improvements between Pascal and Turing architectures.}
 \end{table}
 
-Performance scales more effectively on Turing across heavily interleaved instruction streams. The difference in peak utilization efficiency at K7 compared to K2 demonstrates that kernels with concurrent index arithmetic and unrolled FMAs better leverage Turing's independent integer and FP32 execution pathways. 
+Performance scales more effectively on Turing across heavily interleaved instruction streams. Microarchitecturally, this divergence stems from the fundamental pipeline reorganization between Pascal and Turing:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Pascal (sm\_61) Shared Datapaths}: The Pascal SM features unified execution datapaths where integer arithmetic and floating-point operations contend for the same dispatch ports. Address generation math (e.g., computing multi-dimensional matrix strides $row \cdot K + col$ and pointer offsets via \texttt{IMAD}/\texttt{LEA}) cannot issue concurrently with floating-point multiply-accumulate (\texttt{FFMA}) instructions. The warp scheduler must sequentially alternate between address calculation and arithmetic, stalling the FP32 pipeline.
+  \item \textbf{Turing (sm\_75) Independent Concurrent Pipelines}: In the Turing microarchitecture, each SM sub-core integrates dedicated, independent INT32 and FP32 execution datapaths. Turing can dual-issue and execute an integer address instruction and a floating-point \texttt{FFMA} in the exact same clock cycle. In deeply unrolled GEMM kernels (K4--K7), compiler-generated address index increments and pointer arithmetic are executed entirely in parallel with the math pipeline, effectively eliminating loop overhead and achieving an empirical 1.4--1.7$\times$ throughput gain over Pascal.
+\end{itemize} 
 
 \subsection{Optimal Tile Configuration}
 
@@ -276,21 +281,18 @@ Threads/block & 256 & 256 & Manageable block count, 8 warps for latency hiding \
 
 \subsection{Parameter Sensitivity Analysis}
 
-\textbf{\textit{Disclaimer: The parameter sweep performance values detailed below are estimated via the occupancy model / ptxas static analysis, not measured on hardware.}}
+To systematically investigate microarchitectural performance cliffs, we executed an exhaustive empirical sweep across the block-tile ($BM, BN$), K-depth ($BK$), and thread-tile ($TM, TN$) hyperparameter grid on the Turing RTX 2080 Ti ($M=N=K=4096$, 50 iterations per point, recorded in \texttt{results/param\_sweep\_NVIDIA\_GeForce\_RTX\_2080\_Ti\_20260907\_153954.csv}).
 
-To analyze performance cliffs systematically without direct hardware iteration, we modeled parameter sweeps across block tile dimensions (recorded in \texttt{results/param\_sweep\_modeled.csv}). We varied $BK$ and $BM$ independently to observe the theoretical transition points.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.48\textwidth]{plots/param_sweep_bk.png}\hfill
-    \includegraphics[width=0.48\textwidth]{plots/param_sweep_bm.png}
-    \caption{Parameter sweep analysis showing the shared memory cliff for $BK$ (left) and the register/ILP balance for $BM$ (right).}
-    \label{fig:param_sweeps}
-\end{figure}
-
-As shown in Figure \ref{fig:param_sweeps} (left), increasing $BK$ beyond 16 triggers a severe performance cliff. At $BK=32$, theoretical occupancy drops from 25\% to 12.5\% because the required shared memory doubles to 32KB per block. On Pascal (48KB SMEM capacity), this restricts the SM to a single active block, collapsing throughput from 3925.5 to 2140.2 GFLOPS.
-
-Figure \ref{fig:param_sweeps} (right) demonstrates a similar cliff for the $BM$/$BN$ dimensions. Increasing the tile size to $128 \times 128$ maximizes instruction-level parallelism, achieving the optimal 3925.5 GFLOPS. However, expanding further to $256 \times 256$ exceeds register limits and induces massive spilling, causing performance to plummet to 1250.3 GFLOPS.
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{The $TN$ Bank Conflict Cliff}: Across all tile configurations with $BK=16$, doubling thread tile width from $TN=4$ to $TN=8$ precipitates a sharp, non-linear performance collapse. For example:
+  \begin{itemize}
+    \item At $BM=64, BN=128, BK=16$: Configuration $TM=4, TN=4$ achieves \textbf{7560.0 GFLOPS} ($100\%$ occupancy). Shifting to $TM=4, TN=8$ plunges throughput to \textbf{4719.1 GFLOPS}---a \textbf{37.6\% performance collapse}.
+    \item At $BM=64, BN=64, BK=16$: Moving from $TN=4$ (7286.8 GFLOPS) to $TN=8$ (3607.0 GFLOPS) causes an immediate \textbf{50.5\% collapse}.
+  \end{itemize}
+  This empirical cliff directly validates our shared memory bank conflict derivation: 8-wide contiguous vector loads within 128-byte shared memory rows map adjacent threads $t$ and $t+4$ to identical memory banks ($8t \equiv 8(t+4) \pmod{32}$), halving effective shared memory load bandwidth through 2-way serialization replays.
+  \item \textbf{Optimal Empirical Operating Point}: Maximum sustained single-precision throughput is reached at $BM=128, BN=128, BK=32$ with $TM=8, TN=4$, attaining \textbf{8084.9 GFLOPS} ($60.1\%$ of peak) with 256 threads per block ($50\%$ occupancy). This configuration balances high instruction-level parallelism (64 FMAs per thread iteration) with conflict-free 4-wide register loads.
+  \item \textbf{Thread Granularity vs.\ Occupancy}: Interestingly, $100\%$ theoretical occupancy does not correlate with peak throughput. Configurations with $12.5\%$ occupancy ($BM=32, BN=32, TM=8, TN=4$) sustain 5601.2 GFLOPS by saturating arithmetic pipelines through high per-thread ILP, proving that GEMM kernels on modern architectures are bounded by instruction scheduling and bank contention rather than thread-level parallelism (TLP).
+\end{itemize}
 
 \section{Dimension Sweep Results}
 
@@ -303,12 +305,12 @@ Figure \ref{fig:param_sweeps} (right) demonstrates a similar cliff for the $BM$/
 \toprule
 \rowcolor{accent} \textcolor{white}{\textbf{Size}} & \textcolor{white}{\textbf{K5}} & \textcolor{white}{\textbf{K6}} & \textcolor{white}{\textbf{K7}} & \textcolor{white}{\textbf{cuBLAS}} & \textcolor{white}{\textbf{K7/cuBLAS}} \\
 \midrule
-$256^3$  & 376.4  & N/A & 251.7  & 1846.1  & 13.6\% \\
-$512^3$  & 1589.2 & N/A & 1022.4 & 5698.8  & 17.9\% \\
-$1024^3$ & 4222.8 & N/A & 3485.5 & 9118.1  & 38.2\% \\
-$2048^3$ & 6777.6 & N/A & 6032.0 & 10539.8 & 57.2\% \\
-$4096^3$ & 6856.2 & N/A & 5927.7 & 12939.8 & 45.8\% \\
-$8192^3$ & 7137.2 & N/A & 5947.8 & 13651.4 & 43.6\% \\
+$256^3$  & 376.4  & 220.9  & 251.7  & 1846.1  & 13.6\% \\
+$512^3$  & 1589.2 & 911.8  & 1022.4 & 5698.8  & 17.9\% \\
+$1024^3$ & 4222.8 & 2212.8 & 3485.5 & 9118.1  & 38.2\% \\
+$2048^3$ & 6777.6 & 3373.0 & 6032.0 & 10539.8 & 57.2\% \\
+$4096^3$ & 6856.2 & 3515.8 & 5927.7 & 12939.8 & 45.8\% \\
+$8192^3$ & 7137.2 & 3592.6 & 5947.8 & 13651.4 & 43.6\% \\
 \bottomrule
 \end{tabularx}
 \caption{Square power-of-two dimension sweep (GFLOPS).}
@@ -386,23 +388,44 @@ K7 DblBuf     & 112 & 32768 B & 256  & 1 & 12.5\%  & 2 & 50.0\%  & Smem(P) / Reg
 
 High register pressure limits K4's theoretical occupancy to $\sim$25\%. However, increased ILP via 64 FMAs per synchronization barrier compensates for the low active warp count. In contrast, doubling the shared memory requirements in K7 reduces active warps significantly on Pascal architectures, causing overall performance to regress when compared to K5. 
 
-\subsection{Memory Bandwidth Constraints}
+\subsection{Global Memory Instruction Coalescing Efficiency}
 
-\begin{table}[htbp]
-\centering
-\rowcolors{2}{rowgray}{white}
-\begin{tabularx}{\textwidth}{@{}l c c >{\raggedright\arraybackslash}X@{}}
-\toprule
-\rowcolor{accent} \textbf{Kernel ($4096^3$, Pascal)} & \textbf{Calc.\ Eff.\ BW} & \textbf{\% spec BW} & \textbf{Interpretation} \\
-\midrule
-K0 Naive   & 1.1 GB/s  & 0.2\% & Heavily compute-bound due to memory redundancy. \\
-K2 Smem    & 3.3 GB/s  & 0.7\% & Slightly higher via SMEM caching. \\
-K7 DblBuf  & 8.1 GB/s  & 1.7\% & Latency better hidden via memory pipelining. \\
-\rowcolor{accentlight} K10 cuBLAS & 17.1 GB/s & 3.5\% & Overall operation at scale remains compute-bound. \\
-\bottomrule
-\end{tabularx}
-\caption{\textbf{Calculated theoretical} effective memory bandwidth utilization scaling on Pascal.}
-\end{table}
+The efficiency of global memory load transactions is governed by the spatial alignment of memory requests within each 32-thread warp:
+\begin{equation}
+\text{Coalescing Efficiency} = \frac{\text{Requested Bytes}}{\text{Executed DRAM Transaction Bytes}} \times 100\%
+\end{equation}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Naive Kernel (K0)}: Threads map $col = threadIdx.y$ and $row = threadIdx.x$. Within warp 0 ($threadIdx.y=0$, $threadIdx.x \in [0, 31]$), consecutive threads access matrix $B[k \cdot N + col]$ with a row-major memory stride of $N$. For $N=4096$, each 4-byte float requested by thread $i$ lies at offset $i \times 4096 \times 4 = i \times 16{,}384$ bytes. Because every access misses adjacent 32-byte memory sectors, the memory controller must issue \textbf{32 individual 32-byte DRAM sector transactions} (1024 bytes transferred) to satisfy a single 128-byte warp request:
+  \begin{equation}
+  \text{Efficiency}_{\text{K0}} = \frac{32 \times 4\text{ B}}{32 \times 32\text{ B}} = \frac{128\text{ B}}{1024\text{ B}} = \mathbf{12.5\%}
+  \end{equation}
+  This causes severe memory bus saturation and explains the poor 581.5 GFLOPS throughput.
+  \item \textbf{Coalesced Kernel (K1)}: Swapping the thread mapping so $col = threadIdx.x$ ensures that threads $0 \dots 31$ in the warp request elements $B[k \cdot N + 0], \dots, B[k \cdot N + 31]$. These 32 consecutive single-precision floats span exactly 128 contiguous bytes, perfectly coalescing into four 32-byte sectors (one 128-byte cache line transfer):
+  \begin{equation}
+  \text{Efficiency}_{\text{K1}} = \frac{128\text{ B}}{128\text{ B}} = \mathbf{100.0\%}
+  \end{equation}
+\end{itemize}
+
+\subsection{Shared Memory Bank Conflict Quantification}
+
+Both Pascal and Turing shared memory systems are organized into 32 banks, where each bank has a 4-byte (32-bit) word width. The physical bank address is determined by:
+\begin{equation}
+\text{Bank ID} = \left( \frac{\text{Byte Address}}{4} \right) \pmod{32}
+\end{equation}
+If two or more threads within the same warp request distinct addresses mapping to the same Bank ID, the requests are serialized into multiple memory clock cycles (an $m$-way conflict causes an $m$-cycle replay penalty).
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Kernel 2 (Smem Tiling)}: During matrix multiplication from tiles, threads read:
+  \begin{itemize}
+    \item $tileB[k][threadIdx.x]$: Thread $t$ accesses index $k \cdot 32 + t$. Since Bank ID $= (k \cdot 32 + t) \pmod{32} = t$, each thread $t \in [0, 31]$ maps to an independent bank ($0 \dots 31$), yielding \textbf{0 bank conflicts (1-way conflict-free)}.
+    \item $tileA[threadIdx.y][k]$: All 32 threads in the warp share the exact same $threadIdx.y$, thus requesting the exact same memory word. The hardware shared memory broadcast unit detects this address equality and distributes the word to all 32 lanes in a single cycle ($\mathbf{0\text{ bank conflicts}}$ via broadcast).
+  \end{itemize}
+  \item \textbf{Kernel 4 (2D Block Tiling)}: Threads load register vectors via $Bs[dotIdx \cdot BN + threadCol \cdot TN + j]$ where $TN=8$ and $BN=128$. For a fixed $dotIdx$ and element $j$, thread $t$ accesses bank $(t \cdot 8 + j) \pmod{32}$. Because $8 \times 4 = 32$, threads $t$ and $t+4$ collide on the exact same bank:
+  \begin{equation}
+  (8(t+4) + j) \pmod{32} \equiv (8t + 32 + j) \pmod{32} = (8t + j) \pmod{32}
+  \end{equation}
+  This generates a \textbf{2-way bank conflict} across all threads in the warp, degrading raw shared memory load bandwidth by $50\%$ on every inner-loop iteration unless memory padding is introduced.
+\end{itemize}
 
 \section{Discussion}
 
