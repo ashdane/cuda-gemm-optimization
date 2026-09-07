@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-"""
-nsys_parser.py — Parse `nsys profile --trace=cuda --stats=true` stdout output
-to extract kernel GPU durations. This is our secondary timing source
-(primary = CUDA events in bench_runner; secondary = nsys for cross-validation).
-
-nsys --stats=true prints a table like:
-
- Time(%)  Total Time (ns)  Instances  Avg (ns)  Med (ns)  Min (ns)  Max (ns)  StdDev (ns)  Name
- -------  ---------------  ---------  --------  --------  --------  --------  -----------  ----
-   89.5%      123456789        100     1234567   1230000   1210000   1280000       12345    sgemm_warptile(...)
-
-Usage:
-    nsys profile --trace=cuda --stats=true ./bench_runner_sm75 6 4096 4096 4096 5 20 > nsys_out.txt 2>&1
-    python3 nsys_parser.py nsys_out.txt
-
-Output: CSV rows with kernel name, count, avg_ms, med_ms, min_ms, max_ms, stddev_ms
-"""
 
 import sys
 import re

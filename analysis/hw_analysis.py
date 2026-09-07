@@ -1,27 +1,5 @@
 #!/usr/bin/env python3
-"""
-hw_analysis.py — Code-derived hardware analysis for all GEMM kernel versions.
-
-Since ncu hardware counters are BLOCKED on the Ada cluster (ERR_NVGPUCTRPERM),
-this script performs static analysis of each kernel's memory access patterns
-to derive:
-
-  1. Coalescing efficiency: fraction of memory transactions that are coalesced
-     (consecutive warp threads accessing consecutive addresses)
-  2. Shared memory bank conflicts: whether the smem access stride causes conflicts
-  3. Global memory traffic: bytes read/written at the problem level
-  4. Arithmetic intensity: FLOP/byte at the kernel level (code-derived)
-  5. Theoretical occupancy limiting factor: from ptxas data (see occupancy_calc.py)
-
-All outputs are labeled [CODE-DERIVED] or [CALCULATED] in the report.
-No GPU hardware is required to run this script.
-
-Hardware assumptions (from NVIDIA documentation, cited):
-  Warp size: 32 threads
-  L1/Shared memory bank width: 4 bytes (32 banks × 4 bytes = 128 bytes/cycle)
-  Global memory transaction granularity: 32 bytes (L1 cache line on Pascal/Turing)
-  For 128-bit (float4) loads: 4 floats = 16 bytes → 1 transaction per warp quarter
-"""
+# Memory access pattern analysis for coalescing, bank conflicts, and arithmetic intensity.
 
 import math
 import argparse

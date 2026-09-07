@@ -13,8 +13,7 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 import seaborn as sns
 
-# ─── Hardware spec constants ────────────────────────────────────────────────
-# CITE THESE IN THE REPORT — not measured, from NVIDIA spec sheets
+# Hardware spec constants from NVIDIA spec sheets
 GPU_SPECS = {
     'GeForce GTX 1080 Ti': {
         'fp32_tflops':  11.34,      # TFLOPS FP32 peak
