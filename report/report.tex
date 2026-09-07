@@ -242,19 +242,19 @@ The moment a thread tries to do a \texttt{float4} load on row 1, the address is 
 
 \begin{table}[h]
 \centering
-\begin{tabular}{|l|r|r|r|r|r|}
+\begin{tabular}{|l|r|r|r|r|r|r|}
 \hline
-\textbf{Kernel} & \textbf{Regs} & \textbf{Smem} & \textbf{Threads} & \textbf{Pascal Occ.} & \textbf{Turing Occ.} \\
+\textbf{Kernel} & \textbf{Pascal Regs} & \textbf{Turing Regs} & \textbf{Smem} & \textbf{Threads} & \textbf{Pascal Occ.} & \textbf{Turing Occ.} \\
 \hline
-K0 Naive & 32 & 0 B & 1024 & 100\% & 100\% \\
-K2 Smem & 30 & 8 KB & 1024 & 100\% & 100\% \\
-K4 2D Block & 96 & 8 KB & 256 & 25\% & 50\% \\
-K5 Vectorized & 92 & 16 KB & 256 & 25\% & 50\% \\
-K6 Warptile & 64 & 16 KB & 256 & 37.5\% & 100\% \\
-K7 DoubleBuf & 112 & 32 KB & 256 & 12.5\% & 50\% \\
+K0 Naive & 32 & 52 & 0 B & 1024 & 100\% & 100\% \\
+K2 Smem & 30 & 42 & 8 KB & 1024 & 100\% & 100\% \\
+K4 2D Block & 96 & 94 & 8 KB & 256 & 25\% & 50\% \\
+K5 Vectorized & 92 & 93 & 16 KB & 256 & 25\% & 50\% \\
+K6 Warptile & 64 & 62 & 16 KB & 256 & 37.5\% & 100\% \\
+K7 DoubleBuf & 112 & 96 & 32 KB & 256 & 12.5\% & 50\% \\
 \hline
 \end{tabular}
-\caption{Registers and theoretical occupancy from ptxas.}
+\caption{Registers and theoretical occupancy from \texttt{ptxas}. Turing occupancy correctly accounts for Turing's specific register usage (e.g., K4's 94 registers bounds SM residency to 2 blocks out of 4, yielding 50\% occupancy).}
 \end{table}
 
 Looking at Table 7, there is a massive drop in occupancy between K2 (100\%) and K7 (12.5\% on Pascal). But K7 runs at 4132 GFLOPS while K2 only gets 1676 GFLOPS. This shows that theoretical occupancy alone does not dictate throughput (see Figure 3, top-right panel, where all kernels from Table 7 are mapped against achieved GFLOPS). As long as each thread has enough independent instructions (like 64 FMAs per iteration in register-tiled kernels) to hide memory pipeline latency, having fewer active warps is completely fine.
@@ -362,30 +362,14 @@ Strassen's sub-cubic algorithm reduces arithmetic complexity from $\mathcal{O}(N
     \item \textbf{Numerical Stability:} Strassen's algorithm exhibits looser numerical error bounds compared to standard accumulator dot products, which can cause precision issues in single precision.
 \end{itemize}
 
-\subsection{Split-K Decomposition for Tall/Skinny GEMM}
+\subsection{Split-K Decomposition for Tall/Skinny GEMM (Theoretical Analysis)}
 When $M$ and $N$ are small but $K$ is very large (common in attention projections and batch-1 autoregressive inference), standard 2D grid tiling $(M/BM, N/BN)$ yields too few threadblocks to saturate GPU SMs. For example, on a $128 \times 128 \times 65{,}536$ problem with standard $128 \times 128$ block tiles, the launch grid is $(1, 1)$, creating \textbf{exactly 1 threadblock} and leaving 67 out of 68 SMs completely idle on Turing.
 
-To test this empirically, I implemented and benchmarked a Split-K variation that divides the 65,536 reduction dimension into $S=64$ equal slices across threadblocks, accumulating partial products into a temporary workspace before running a lightweight reduction pass. Table 11 shows the measured comparison on the Turing RTX 2080 Ti:
-
-\begin{table}[h]
-\centering
-\begin{tabular}{|l|r|r|r|l|}
-\hline
-\textbf{Kernel Strategy} & \textbf{Active Blocks} & \textbf{Time (ms)} & \textbf{Throughput (GFLOPS)} & \textbf{SM Utilization} \\
-\hline
-Standard 2D Blocktile (K4) & 1 & 2.164 $\pm$ 0.041 & 992.5 $\pm$ 18.8 & Severe under-subscription (1/68 SMs) \\
-Split-K ($S=64$ slices) & 64 & 0.448 $\pm$ 0.015 & 4794.2 $\pm$ 160.5 & High wave saturation (64/68 SMs) \\
-cuBLAS Reference & Adaptive & 0.222 $\pm$ 0.008 & 9674.8 $\pm$ 348.6 & Vendor autotuned Split-K \\
-\hline
-\end{tabular}
-\caption{Empirical evaluation of Split-K on a tall/skinny matrix ($128 \times 128 \times 65{,}536$) on Turing (median $\pm$ stddev over 100 timed runs).}
-\end{table}
-
-The experimental results validate the theoretical motivation:
+While I did not implement a custom Split-K kernel for this report, the theoretical motivation for Split-K is clear from our occupancy analysis:
 \begin{itemize}
-    \item On standard 2D block tiling, throughput collapses to \textbf{992.5 GFLOPS} because 67 out of 68 SMs are idle.
-    \item Split-K distributes the reduction loop across 64 threadblocks, saturating nearly all SMs and achieving \textbf{4794.2 GFLOPS}—a \textbf{4.83x empirical speedup} over standard 2D tiling on the exact same problem dimensions.
-    \item While the secondary reduction phase introduces a modest memory-write overhead, the dramatic increase in SM wave quantization and thread-level concurrency vastly outweighs the reduction cost on skinny shapes.
+    \item \textbf{Under-subscription penalty:} Standard 2D block tiling limits concurrency to the $M$ and $N$ dimensions. When computing a single $128 \times 128$ output tile, the entire 65,536-element reduction loop is serialized within a single threadblock, stranding the vast majority of the GPU's arithmetic pipelines.
+    \item \textbf{Split-K scaling:} A Split-K algorithm addresses this by dividing the $K$ dimension into $S$ equal slices (e.g., $S=64$). Each slice is computed independently by a separate threadblock, outputting partial results to a temporary global workspace. A final lightweight reduction pass then accumulates these partials.
+    \item \textbf{Wave quantization tradeoff:} By launching $1 \times 64 = 64$ active threadblocks instead of 1, Split-K allows the GPU to achieve near-perfect wave saturation across the 68 SMs on Turing. While the secondary reduction phase introduces a modest global memory-write overhead, the massive increase in thread-level concurrency theoretically enables throughput to scale almost linearly with $S$ (up to the SM count) compared to the severe bottleneck of a single active SM.
 \end{itemize}
 
 \subsection{Mixed-Precision and Quantized GEMM (INT8 / DP4A)}
